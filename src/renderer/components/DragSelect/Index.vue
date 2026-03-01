@@ -7,155 +7,163 @@
   </div>
 </template>
 
-<script>
-  const getCoords = (e, containerRect) => ({
+<script setup lang="ts">
+  import { ref, watch, onMounted, onUnmounted } from 'vue'
+
+  defineOptions({ name: 'mo-drag-select' })
+
+  interface Point {
+    x: number
+    y: number
+  }
+
+  const getCoords = (e: MouseEvent | Touch, containerRect: DOMRect): Point => ({
     x: e.clientX - containerRect.left,
     y: e.clientY - containerRect.top
   })
 
-  const getDimensions = (p1, p2) => ({
+  const getDimensions = (p1: Point, p2: Point) => ({
     width: Math.abs(p1.x - p2.x),
     height: Math.abs(p1.y - p2.y)
   })
 
-  const collisionCheck = (node1, node2) =>
+  const collisionCheck = (node1: DOMRect, node2: DOMRect) =>
     node1.left < node2.left + node2.width &&
     node1.left + node1.width > node2.left &&
     node1.top < node2.top + node2.height &&
     node1.top + node1.height > node2.top
 
-  export default {
-    name: 'mo-drag-select',
-    props: {
-      attribute: {
-        type: String,
-        required: true
-      },
-      color: {
-        type: String,
-        default: '#bad7fb'
-      },
-      opacity: {
-        type: Number,
-        default: 0.7
-      }
-    },
-    data () {
-      return {
-        intersected: [],
-        children: []
-      }
-    },
-    watch: {
-      intersected (i) {
-        this.$emit('change', i)
-      }
-    },
-    mounted () {
-      const { container } = this.$refs
-      const self = this
+  const props = withDefaults(defineProps<{
+    attribute: string
+    color?: string
+    opacity?: number
+  }>(), {
+    color: '#bad7fb',
+    opacity: 0.7
+  })
 
-      let containerRect = container.getBoundingClientRect()
-      const box = this.createBox()
-      let start = { x: 0, y: 0 }
-      let end = { x: 0, y: 0 }
+  const emit = defineEmits<{
+    change: [intersected: string[]]
+  }>()
 
-      function touchStart (e) {
-        e.preventDefault()
-        startDrag(e.touches[0])
-      }
+  const container = ref<HTMLElement | null>(null)
+  const intersected = ref<string[]>([])
+  const children = ref<NodeListOf<ChildNode> | never[]>([])
 
-      function touchMove (e) {
-        e.preventDefault()
-        drag(e.touches[0])
-      }
+  watch(intersected, (i) => {
+    emit('change', i)
+  })
 
-      function startDrag (e) {
-        containerRect = container.getBoundingClientRect()
-        self.children = container.childNodes
-        start = getCoords(e, containerRect)
-        end = start
-        document.addEventListener('mousemove', drag)
-        document.addEventListener('touchmove', touchMove)
+  let cleanupFn: (() => void) | null = null
 
-        box.style.top = start.y + 'px'
-        box.style.left = start.x + 'px'
+  function createBox (): HTMLDivElement {
+    const box = document.createElement('div')
+    box.setAttribute('data-drag-box-component', '')
+    box.style.position = 'absolute'
+    box.style.backgroundColor = props.color
+    box.style.opacity = String(props.opacity)
+    box.style.zIndex = '1000'
 
-        container.prepend(box)
-        self.intersection(box)
-      }
+    return box
+  }
 
-      function drag (e) {
-        end = getCoords(e, containerRect)
-        const dimensions = getDimensions(start, end)
+  function intersection (box: HTMLDivElement) {
+    const childNodes = children.value
+    const rect = box.getBoundingClientRect()
+    const result: string[] = []
 
-        if (end.x < start.x) {
-          box.style.left = end.x + 'px'
+    for (let i = 0; i < childNodes.length; i++) {
+      const child = childNodes[i] as HTMLElement
+      if (child.getBoundingClientRect && collisionCheck(rect, child.getBoundingClientRect())) {
+        const attr = child.getAttribute(props.attribute)
+        if (child.hasAttribute(props.attribute)) {
+          result.push(attr!)
         }
-        if (end.y < start.y) {
-          box.style.top = end.y + 'px'
-        }
-        box.style.width = dimensions.width + 'px'
-        box.style.height = dimensions.height + 'px'
-
-        self.intersection(box)
-      }
-
-      function endDrag () {
-        start = { x: 0, y: 0 }
-        end = { x: 0, y: 0 }
-
-        box.style.width = 0
-        box.style.height = 0
-
-        document.removeEventListener('mousemove', drag)
-        document.removeEventListener('touchmove', touchMove)
-        box.remove()
-      }
-
-      container.addEventListener('mousedown', startDrag)
-      container.addEventListener('touchstart', touchStart)
-
-      document.addEventListener('mouseup', endDrag)
-      document.addEventListener('touchend', endDrag)
-
-      this.$once('on:destroy', () => {
-        container.removeEventListener('mousedown', startDrag)
-        container.removeEventListener('touchstart', touchStart)
-        document.removeEventListener('mouseup', endDrag)
-        document.removeEventListener('touchend', endDrag)
-      })
-    },
-    methods: {
-      createBox () {
-        const box = document.createElement('div')
-        box.setAttribute('data-drag-box-component', '')
-        box.style.position = 'absolute'
-        box.style.backgroundColor = this.color
-        box.style.opacity = this.opacity
-        box.style.zIndex = 1000
-
-        return box
-      },
-      intersection (box) {
-        const { children } = this
-        const rect = box.getBoundingClientRect()
-        const intersected = []
-
-        for (let i = 0; i < children.length; i++) {
-          if (collisionCheck(rect, children[i].getBoundingClientRect())) {
-            const attr = children[i].getAttribute(this.attribute)
-            if (children[i].hasAttribute(this.attribute)) {
-              intersected.push(attr)
-            }
-          }
-        }
-
-        if (
-          JSON.stringify([...intersected]) !==
-          JSON.stringify([...this.intersected])
-        ) { this.intersected = intersected }
       }
     }
+
+    if (
+      JSON.stringify([...result]) !==
+      JSON.stringify([...intersected.value])
+    ) { intersected.value = result }
   }
+
+  onMounted(() => {
+    const el = container.value!
+
+    let containerRect = el.getBoundingClientRect()
+    const box = createBox()
+    let start: Point = { x: 0, y: 0 }
+    let end: Point = { x: 0, y: 0 }
+
+    function touchStart (e: TouchEvent) {
+      e.preventDefault()
+      startDrag(e.touches[0])
+    }
+
+    function touchMove (e: TouchEvent) {
+      e.preventDefault()
+      drag(e.touches[0])
+    }
+
+    function startDrag (e: MouseEvent | Touch) {
+      containerRect = el.getBoundingClientRect()
+      children.value = el.childNodes
+      start = getCoords(e, containerRect)
+      end = start
+      document.addEventListener('mousemove', drag)
+      document.addEventListener('touchmove', touchMove as EventListener)
+
+      box.style.top = start.y + 'px'
+      box.style.left = start.x + 'px'
+
+      el.prepend(box)
+      intersection(box)
+    }
+
+    function drag (e: MouseEvent | Touch) {
+      end = getCoords(e as MouseEvent | Touch, containerRect)
+      const dimensions = getDimensions(start, end)
+
+      if (end.x < start.x) {
+        box.style.left = end.x + 'px'
+      }
+      if (end.y < start.y) {
+        box.style.top = end.y + 'px'
+      }
+      box.style.width = dimensions.width + 'px'
+      box.style.height = dimensions.height + 'px'
+
+      intersection(box)
+    }
+
+    function endDrag () {
+      start = { x: 0, y: 0 }
+      end = { x: 0, y: 0 }
+
+      box.style.width = '0'
+      box.style.height = '0'
+
+      document.removeEventListener('mousemove', drag)
+      document.removeEventListener('touchmove', touchMove as EventListener)
+      box.remove()
+    }
+
+    el.addEventListener('mousedown', startDrag as EventListener)
+    el.addEventListener('touchstart', touchStart as EventListener)
+
+    document.addEventListener('mouseup', endDrag)
+    document.addEventListener('touchend', endDrag)
+
+    cleanupFn = () => {
+      el.removeEventListener('mousedown', startDrag as EventListener)
+      el.removeEventListener('touchstart', touchStart as EventListener)
+      document.removeEventListener('mouseup', endDrag)
+      document.removeEventListener('touchend', endDrag)
+    }
+  })
+
+  onUnmounted(() => {
+    cleanupFn?.()
+  })
 </script>

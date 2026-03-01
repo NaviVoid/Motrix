@@ -8,10 +8,8 @@
   </h1>
 </template>
 
-<script>
-  export default {
-    name: 'mo-logo-mini'
-  }
+<script setup lang="ts">
+  defineOptions({ name: 'mo-logo-mini' })
 </script>
 
 <style lang="scss">

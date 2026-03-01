@@ -7,31 +7,28 @@
     </el-col>
     <el-col :span="18" class="copyright-right">
       <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/license">
-        {{ $t('about.license') }}
+        {{ t('about.license') }}
       </a>
       <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/about">
-        {{ $t('about.about') }}
+        {{ t('about.about') }}
       </a>
       <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/support">
-        {{ $t('about.support') }}
+        {{ t('about.support') }}
       </a>
       <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/release">
-        {{ $t('about.release') }}
+        {{ t('about.release') }}
       </a>
     </el-col>
   </el-row>
 </template>
 
-<script>
-  export default {
-    name: 'mo-copyright',
-    data () {
-      const year = new Date().getFullYear()
-      return {
-        year
-      }
-    }
-  }
+<script setup lang="ts">
+  import { useI18n } from 'vue-i18n'
+
+  defineOptions({ name: 'mo-copyright' })
+
+  const { t } = useI18n()
+  const year = new Date().getFullYear()
 </script>
 
 <style lang="scss">

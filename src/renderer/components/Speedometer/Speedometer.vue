@@ -10,35 +10,29 @@
       <em>{{ engineMode }}</em>
     </div>
     <div class="value" v-if="stat.numActive > 0">
-      <em>{{ stat.uploadSpeed | bytesToSize }}/s</em>
-      <span>{{ stat.downloadSpeed | bytesToSize }}/s</span>
+      <em>{{ bytesToSize(stat.uploadSpeed) }}/s</em>
+      <span>{{ bytesToSize(stat.downloadSpeed) }}/s</span>
     </div>
   </div>
 </template>
 
-<script>
-  import { mapState, mapActions } from 'vuex'
+<script setup lang="ts">
+  import { storeToRefs } from 'pinia'
+  import { useAppStore } from '@/store/app'
+  import { usePreferenceStore } from '@/store/preference'
   import { bytesToSize } from '@shared/utils'
   import '@/components/Icons/speedometer'
 
-  export default {
-    name: 'mo-speedometer',
-    computed: {
-      ...mapState('app', [
-        'stat'
-      ]),
-      ...mapState('preference', [
-        'engineMode'
-      ])
-    },
-    filters: {
-      bytesToSize
-    },
-    methods: {
-      ...mapActions('preference', [
-        'toggleEngineMode'
-      ])
-    }
+  defineOptions({ name: 'mo-speedometer' })
+
+  const appStore = useAppStore()
+  const preferenceStore = usePreferenceStore()
+
+  const { stat } = storeToRefs(appStore)
+  const { engineMode } = storeToRefs(preferenceStore)
+
+  function toggleEngineMode () {
+    preferenceStore.toggleEngineMode()
   }
 </script>
 

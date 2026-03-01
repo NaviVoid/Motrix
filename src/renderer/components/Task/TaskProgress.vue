@@ -14,35 +14,25 @@
   </el-progress>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { computed } from 'vue'
   import { TASK_STATUS } from '@shared/constants'
   import { calcProgress } from '@shared/utils'
   import colors from '@shared/colors'
 
-  export default {
-    name: 'mo-task-progress',
-    props: {
-      total: {
-        type: Number
-      },
-      completed: {
-        type: Number
-      },
-      status: {
-        type: String,
-        default: TASK_STATUS.ACTIVE
-      }
-    },
-    computed: {
-      isActive () {
-        return this.status === TASK_STATUS.ACTIVE
-      },
-      percent () {
-        return calcProgress(this.total, this.completed)
-      },
-      color () {
-        return colors[this.status]
-      }
-    }
-  }
+  defineOptions({ name: 'mo-task-progress' })
+
+  const props = withDefaults(defineProps<{
+    total?: number
+    completed?: number
+    status?: string
+  }>(), {
+    status: TASK_STATUS.ACTIVE
+  })
+
+  const isActive = computed(() => props.status === TASK_STATUS.ACTIVE)
+
+  const percent = computed(() => calcProgress(props.total, props.completed))
+
+  const color = computed(() => colors[props.status])
 </script>

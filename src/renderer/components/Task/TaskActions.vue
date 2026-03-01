@@ -68,12 +68,14 @@
   </div>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { ref, computed, getCurrentInstance } from 'vue'
+  import { useTaskStore } from '@/store/task'
+  import { useAppStore } from '@/store/app'
+  import { useI18n } from 'vue-i18n'
 
   import { commands } from '@/components/CommandManager/instance'
   import { ADD_TASK_TYPE } from '@shared/constants'
-  import { bytesToSize, timeFormat } from '@shared/utils'
   import '@/components/Icons/menu-add'
   import '@/components/Icons/refresh'
   import '@/components/Icons/task-start-line'
@@ -82,80 +84,84 @@
   import '@/components/Icons/purge'
   import '@/components/Icons/more'
 
-  export default {
-    name: 'mo-task-actions',
-    components: {
-    },
-    props: ['task'],
-    data () {
-      return {
-        refreshing: false
-      }
-    },
-    computed: {
-      ...mapState('task', {
-        currentList: state => state.currentList,
-        selectedGidListCount: state => state.selectedGidList.length
-      })
-    },
-    filters: {
-      bytesToSize,
-      timeFormat
-    },
-    methods: {
-      refreshSpin () {
-        this.t && clearTimeout(this.t)
+  defineOptions({ name: 'mo-task-actions' })
 
-        this.refreshing = true
-        this.t = setTimeout(() => {
-          this.refreshing = false
-        }, 500)
-      },
-      onBatchDeleteClick (event) {
-        const deleteWithFiles = !!event.shiftKey
-        commands.emit('batch-delete-task', { deleteWithFiles })
-      },
-      onRefreshClick () {
-        this.refreshSpin()
-        this.$store.dispatch('task/fetchList')
-      },
-      onResumeAllClick () {
-        this.$store.dispatch('task/resumeAllTask')
-          .then(() => {
-            this.$msg.success(this.$t('task.resume-all-task-success'))
-          })
-          .catch(({ code }) => {
-            if (code === 1) {
-              this.$msg.error(this.$t('task.resume-all-task-fail'))
-            }
-          })
-      },
-      onPauseAllClick () {
-        this.$store.dispatch('task/pauseAllTask')
-          .then(() => {
-            this.$msg.success(this.$t('task.pause-all-task-success'))
-          })
-          .catch(({ code }) => {
-            if (code === 1) {
-              this.$msg.error(this.$t('task.pause-all-task-fail'))
-            }
-          })
-      },
-      onPurgeRecordClick () {
-        this.$store.dispatch('task/purgeTaskRecord')
-          .then(() => {
-            this.$msg.success(this.$t('task.purge-record-success'))
-          })
-          .catch(({ code }) => {
-            if (code === 1) {
-              this.$msg.error(this.$t('task.purge-record-fail'))
-            }
-          })
-      },
-      onAddClick () {
-        this.$store.dispatch('app/showAddTaskDialog', ADD_TASK_TYPE.URI)
-      }
+  defineProps<{
+    task?: Record<string, any>
+  }>()
+
+  const { t } = useI18n()
+  const instance = getCurrentInstance()!
+  const $msg = instance.proxy!.$msg
+
+  const taskStore = useTaskStore()
+  const appStore = useAppStore()
+
+  const refreshing = ref(false)
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+  const currentList = computed(() => taskStore.currentList)
+  const selectedGidListCount = computed(() => taskStore.selectedGidList.length)
+
+  function refreshSpin () {
+    if (refreshTimer) {
+      clearTimeout(refreshTimer)
     }
+
+    refreshing.value = true
+    refreshTimer = setTimeout(() => {
+      refreshing.value = false
+    }, 500)
+  }
+
+  function onBatchDeleteClick (event: MouseEvent) {
+    const deleteWithFiles = !!event.shiftKey
+    commands.emit('batch-delete-task', { deleteWithFiles })
+  }
+
+  function onRefreshClick () {
+    refreshSpin()
+    taskStore.fetchList()
+  }
+
+  function onResumeAllClick () {
+    taskStore.resumeAllTask()
+      .then(() => {
+        $msg.success(t('task.resume-all-task-success'))
+      })
+      .catch(({ code }: { code: number }) => {
+        if (code === 1) {
+          $msg.error(t('task.resume-all-task-fail'))
+        }
+      })
+  }
+
+  function onPauseAllClick () {
+    taskStore.pauseAllTask()
+      .then(() => {
+        $msg.success(t('task.pause-all-task-success'))
+      })
+      .catch(({ code }: { code: number }) => {
+        if (code === 1) {
+          $msg.error(t('task.pause-all-task-fail'))
+        }
+      })
+  }
+
+  function onPurgeRecordClick () {
+    taskStore.purgeTaskRecord()
+      .then(() => {
+        $msg.success(t('task.purge-record-success'))
+      })
+      .catch(({ code }: { code: number }) => {
+        if (code === 1) {
+          $msg.error(t('task.purge-record-fail'))
+        }
+      })
+  }
+
+  function onAddClick () {
+    appStore.showAddTaskDialog(ADD_TASK_TYPE.URI)
   }
 </script>
 

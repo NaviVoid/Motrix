@@ -2,105 +2,95 @@
   <div style="display: none;">
     <img
       id="tray-icon-light-normal"
-      src="static/mo-tray-light-normal@2x.png"
+      src="/mo-tray-light-normal@2x.png"
     >
     <img
       id="tray-icon-light-active"
-      src="static/mo-tray-light-active@2x.png"
+      src="/mo-tray-light-active@2x.png"
     >
     <img
       id="tray-icon-dark-normal"
-      src="static/mo-tray-dark-normal@2x.png"
+      src="/mo-tray-dark-normal@2x.png"
     >
     <img
       id="tray-icon-dark-active"
-      src="static/mo-tray-dark-active@2x.png"
+      src="/mo-tray-dark-active@2x.png"
     >
   </div>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { computed, watch, onMounted } from 'vue'
+  import { useAppStore } from '@/store/app'
 
   import { getInverseTheme } from '@shared/utils'
   import { APP_THEME } from '@shared/constants'
 
-  const cache = {}
+  defineOptions({ name: 'mo-dynamic-tray' })
 
-  export default {
-    name: 'mo-dynamic-tray',
-    computed: {
-      ...mapState('app', {
-        iconStatus: state => state.stat.numActive > 0 ? 'active' : 'normal',
-        theme: state => state.systemTheme,
-        focused: state => state.trayFocused,
-        uploadSpeed: state => state.stat.uploadSpeed,
-        downloadSpeed: state => state.stat.downloadSpeed,
-        speed: state => state.stat.uploadSpeed + state.stat.downloadSpeed
-      }),
-      scale () {
-        return 2
-      },
-      currentTheme () {
-        const { theme, focused } = this
-        if (theme === APP_THEME.DARK) {
-          return theme
-        }
+  const cache: Record<string, ImageBitmap> = {}
 
-        return focused ? getInverseTheme(theme) : theme
-      },
-      iconKey () {
-        const { bigSur, iconStatus, currentTheme } = this
-        return bigSur ? 'tray-icon-light-normal' : `tray-icon-${currentTheme}-${iconStatus}`
-      }
-    },
-    watch: {
-      async speed (val) {
-        await this.drawTray()
-      },
-      async iconKey (val) {
-        await this.drawTray()
-      }
-    },
-    mounted () {
-      setTimeout(async () => {
-        await this.drawTray()
-      }, 200)
-    },
-    methods: {
-      async getIcon (key) {
-        if (cache[key]) {
-          return cache[key]
-        }
+  const appStore = useAppStore()
 
-        const iconImage = document.getElementById(key)
-        const result = await createImageBitmap(iconImage)
-        cache[key] = result
+  const iconStatus = computed(() => appStore.stat.numActive > 0 ? 'active' : 'normal')
+  const theme = computed(() => appStore.systemTheme)
+  const focused = computed(() => appStore.trayFocused)
+  const uploadSpeed = computed(() => appStore.stat.uploadSpeed)
+  const downloadSpeed = computed(() => appStore.stat.downloadSpeed)
+  const speed = computed(() => appStore.stat.uploadSpeed + appStore.stat.downloadSpeed)
 
-        return result
-      },
-      async drawTray () {
-        const {
-          currentTheme: theme,
-          uploadSpeed,
-          downloadSpeed,
-          scale,
-          iconKey
-        } = this
+  const scale = computed(() => 2)
 
-        const icon = await this.getIcon(iconKey)
-
-        global.app.trayWorker.postMessage({
-          type: 'tray:draw',
-          payload: {
-            theme,
-            icon,
-            uploadSpeed,
-            downloadSpeed,
-            scale
-          }
-        })
-      }
+  const currentTheme = computed(() => {
+    if (theme.value === APP_THEME.DARK) {
+      return theme.value
     }
+    return focused.value ? getInverseTheme(theme.value) : theme.value
+  })
+
+  const iconKey = computed(() => {
+    const bigSur = (appStore as any).bigSur
+    return bigSur ? 'tray-icon-light-normal' : `tray-icon-${currentTheme.value}-${iconStatus.value}`
+  })
+
+  watch(speed, async () => {
+    await drawTray()
+  })
+
+  watch(iconKey, async () => {
+    await drawTray()
+  })
+
+  onMounted(() => {
+    setTimeout(async () => {
+      await drawTray()
+    }, 200)
+  })
+
+  async function getIcon (key: string): Promise<ImageBitmap> {
+    if (cache[key]) {
+      return cache[key]
+    }
+
+    const iconImage = document.getElementById(key) as HTMLImageElement
+    const result = await createImageBitmap(iconImage)
+    cache[key] = result
+
+    return result
+  }
+
+  async function drawTray () {
+    const icon = await getIcon(iconKey.value)
+
+    ;(global as any).app.trayWorker.postMessage({
+      type: 'tray:draw',
+      payload: {
+        theme: currentTheme.value,
+        icon,
+        uploadSpeed: uploadSpeed.value,
+        downloadSpeed: downloadSpeed.value,
+        scale: scale.value
+      }
+    })
   }
 </script>

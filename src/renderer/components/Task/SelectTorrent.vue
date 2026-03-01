@@ -43,10 +43,12 @@
   </div>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { ref, computed, watch } from 'vue'
+  import { useAppStore } from '@/store/app'
+  import { usePreferenceStore } from '@/store/preference'
   import { remote } from 'parse-torrent'
-  import TaskFiles from '@/components/TaskDetail/TaskFiles'
+  import MoTaskFiles from '@/components/TaskDetail/TaskFiles.vue'
   import '@/components/Icons/inbox'
   import {
     EMPTY_STRING,
@@ -56,92 +58,77 @@
   import {
     buildFileList,
     listTorrentFiles,
-    bytesToSize,
-    getAsBase64,
-    removeExtensionDot
+    getAsBase64
   } from '@shared/utils'
 
-  export default {
-    name: 'mo-select-torrent',
-    components: {
-      [TaskFiles.name]: TaskFiles
-    },
-    filters: {
-      bytesToSize,
-      removeExtensionDot
-    },
-    props: {
-    },
-    data () {
-      return {
-        name: EMPTY_STRING,
-        currentTorrent: EMPTY_STRING,
-        files: [],
-        selectedFiles: []
-      }
-    },
-    computed: {
-      ...mapState('app', {
-        torrents: state => state.addTaskTorrents
-      }),
-      ...mapState('preference', {
-        config: state => state.config
-      }),
-      isTorrentsEmpty () {
-        return this.torrents.length === 0
-      }
-    },
-    watch: {
-      torrents (fileList) {
-        if (fileList.length === 0) {
-          this.reset()
-          return
-        }
+  defineOptions({ name: 'mo-select-torrent' })
 
-        const file = fileList[0]
-        if (!file.raw) {
-          return
-        }
+  const emit = defineEmits<{
+    (e: 'change', torrent: string, selectedFiles: string): void
+  }>()
 
-        remote(file.raw, { timeout: 60 * 1000 }, (err, parsedTorrent) => {
-          if (err) throw err
-          console.log('[Motrix] parsed torrent: ', parsedTorrent)
-          this.files = listTorrentFiles(parsedTorrent.files)
-          this.$refs.torrentFileList.toggleAllSelection()
+  const appStore = useAppStore()
+  const preferenceStore = usePreferenceStore()
 
-          getAsBase64(file.raw, (torrent) => {
-            this.name = file.name
-            this.currentTorrent = torrent
-            this.$emit('change', torrent, SELECTED_ALL_FILES)
-          })
-        })
-      }
-    },
-    methods: {
-      reset () {
-        this.name = EMPTY_STRING
-        this.currentTorrent = EMPTY_STRING
-        this.files = []
-        if (this.$refs.torrentFileList) {
-          this.$refs.torrentFileList.clearSelection()
-        }
-        this.$emit('change', EMPTY_STRING, NONE_SELECTED_FILES)
-      },
-      handleChange (file, fileList) {
-        this.$store.dispatch('app/addTaskAddTorrents', { fileList })
-      },
-      handleExceed (files) {
-        const fileList = buildFileList(files[0])
-        this.$store.dispatch('app/addTaskAddTorrents', { fileList })
-      },
-      handleTrashClick () {
-        this.$store.dispatch('app/addTaskAddTorrents', { fileList: [] })
-      },
-      handleSelectionChange (val) {
-        const { currentTorrent } = this
-        this.$emit('change', currentTorrent, val)
-      }
+  const name = ref(EMPTY_STRING)
+  const currentTorrent = ref(EMPTY_STRING)
+  const files = ref<any[]>([])
+  const selectedFiles = ref<any[]>([])
+  const torrentFileList = ref<InstanceType<typeof TaskFiles> | null>(null)
+
+  const torrents = computed(() => appStore.addTaskTorrents)
+  const config = computed(() => preferenceStore.config)
+
+  const isTorrentsEmpty = computed(() => torrents.value.length === 0)
+
+  watch(torrents, (fileList) => {
+    if (fileList.length === 0) {
+      reset()
+      return
     }
+
+    const file = fileList[0]
+    if (!file.raw) {
+      return
+    }
+
+    remote(file.raw, { timeout: 60 * 1000 }, (err: Error | null, parsedTorrent: any) => {
+      if (err) throw err
+      console.log('[Motrix] parsed torrent: ', parsedTorrent)
+      files.value = listTorrentFiles(parsedTorrent.files)
+      torrentFileList.value?.toggleAllSelection()
+
+      getAsBase64(file.raw, (torrent: string) => {
+        name.value = file.name
+        currentTorrent.value = torrent
+        emit('change', torrent, SELECTED_ALL_FILES)
+      })
+    })
+  })
+
+  function reset () {
+    name.value = EMPTY_STRING
+    currentTorrent.value = EMPTY_STRING
+    files.value = []
+    torrentFileList.value?.clearSelection()
+    emit('change', EMPTY_STRING, NONE_SELECTED_FILES)
+  }
+
+  function handleChange (file: any, fileList: any[]) {
+    appStore.addTaskAddTorrents({ fileList })
+  }
+
+  function handleExceed (uploadFiles: any[]) {
+    const fileList = buildFileList(uploadFiles[0])
+    appStore.addTaskAddTorrents({ fileList })
+  }
+
+  function handleTrashClick () {
+    appStore.addTaskAddTorrents({ fileList: [] })
+  }
+
+  function handleSelectionChange (val: string) {
+    emit('change', currentTorrent.value, val)
   }
 </script>
 

@@ -7,13 +7,15 @@
   </el-container>
 </template>
 
-<script>
-  export default {
-    name: 'mo-content-preference',
-    created () {
-      this.$store.dispatch('preference/fetchPreference')
-    }
-  }
+<script setup lang="ts">
+  import { usePreferenceStore } from '@/store/preference'
+
+  defineOptions({ name: 'mo-content-preference' })
+
+  const preferenceStore = usePreferenceStore()
+
+  // created equivalent - runs at setup time
+  preferenceStore.fetchPreference()
 </script>
 
 <style lang="scss">

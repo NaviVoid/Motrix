@@ -4,11 +4,14 @@
   </el-tag>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { computed } from 'vue'
   import { APP_THEME, TASK_STATUS } from '@shared/constants'
   import colors from '@shared/colors'
 
-  const statusTypeMap = {
+  defineOptions({ name: 'mo-task-status' })
+
+  const statusTypeMap: Record<string, string> = {
     [TASK_STATUS.ACTIVE]: 'success',
     [TASK_STATUS.WAITING]: 'info',
     [TASK_STATUS.PAUSED]: 'info',
@@ -18,28 +21,15 @@
     [TASK_STATUS.SEEDING]: 'success'
   }
 
-  export default {
-    name: 'mo-task-status',
-    props: {
-      theme: {
-        type: String,
-        default: APP_THEME.DARK,
-        validator: function (value) {
-          return [APP_THEME.LIGHT, APP_THEME.DARK].indexOf(value) !== -1
-        }
-      },
-      status: {
-        type: String,
-        default: TASK_STATUS.ACTIVE
-      }
-    },
-    computed: {
-      type () {
-        return statusTypeMap[this.status]
-      },
-      color () {
-        return colors[this.status]
-      }
-    }
-  }
+  const props = withDefaults(defineProps<{
+    theme?: string
+    status?: string
+  }>(), {
+    theme: APP_THEME.DARK,
+    status: TASK_STATUS.ACTIVE
+  })
+
+  const type = computed(() => statusTypeMap[props.status])
+
+  const color = computed(() => colors[props.status])
 </script>

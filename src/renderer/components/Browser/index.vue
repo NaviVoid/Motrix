@@ -8,57 +8,44 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed, onMounted, nextTick } from 'vue'
   import is from 'electron-is'
-  import { webContents } from '@electron/remote'
-  import { Loading } from 'element-ui'
+  import { ElLoading } from 'element-plus'
 
-  export default {
-    name: 'mo-browser',
-    components: {
-    },
-    props: {
-      src: {
-        type: String,
-        default: ''
-      }
-    },
-    data () {
-      return {
-        loading: null
-      }
-    },
-    computed: {
-      isRenderer: () => is.renderer()
-    },
-    mounted () {
-      const { iframe } = this.$refs
+  defineOptions({ name: 'mo-browser' })
 
-      iframe.addEventListener('did-start-loading', this.loadStart.bind(this))
-      iframe.addEventListener('did-stop-loading', this.loadStop.bind(this))
-      iframe.addEventListener('dom-ready', this.ready.bind(this))
-    },
-    methods: {
-      loadStart () {
-        const { webviewViewport } = this.$refs
-        this.loading = Loading.service({
-          target: webviewViewport
-        })
-      },
-      loadStop () {
-        this.$nextTick(() => {
-          this.loading.close()
-        })
-      },
-      ready () {
-        const { iframe } = this.$refs
+  withDefaults(defineProps<{
+    src?: string
+  }>(), {
+    src: ''
+  })
 
-        const wc = webContents.fromId(iframe.getWebContentsId())
-        wc.setWindowOpenHandler((event, url) => {
-          event.preventDefault()
-          this.$electron.ipcRenderer.send('command', 'application:open-external', url)
-        })
-      }
+  const webviewViewport = ref<HTMLDivElement | null>(null)
+  const iframe = ref<HTMLIFrameElement | null>(null)
+  const loading = ref<ReturnType<typeof ElLoading.service> | null>(null)
+
+  const isRenderer = computed(() => is.renderer())
+
+  onMounted(() => {
+    if (iframe.value) {
+      iframe.value.addEventListener('load', loadStop)
+    }
+  })
+
+  function loadStart () {
+    if (webviewViewport.value) {
+      loading.value = ElLoading.service({
+        target: webviewViewport.value
+      })
+    }
+  }
+
+  function loadStop () {
+    if (loading.value) {
+      nextTick(() => {
+        loading.value!.close()
+      })
     }
   }
 </script>

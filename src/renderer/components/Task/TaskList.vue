@@ -23,48 +23,37 @@
   </div>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { ref, computed, watch } from 'vue'
+  import { useTaskStore } from '@/store/task'
   import { cloneDeep } from 'lodash'
-  import DragSelect from '@/components/DragSelect/Index'
-  import TaskItem from './TaskItem'
+  import MoDragSelect from '@/components/DragSelect/Index.vue'
+  import MoTaskItem from './TaskItem.vue'
 
-  export default {
-    name: 'mo-task-list',
-    components: {
-      [DragSelect.name]: DragSelect,
-      [TaskItem.name]: TaskItem
-    },
-    data () {
-      const selectedList = cloneDeep(this.$store.state.task.selectedList) || []
-      return {
-        selectedList
-      }
-    },
-    computed: {
-      ...mapState('task', {
-        taskList: state => state.taskList,
-        selectedGidList: state => state.selectedGidList
-      })
-    },
-    methods: {
-      handleDragSelectChange (selectedList) {
-        this.selectedList = selectedList
-        this.$store.dispatch('task/selectTasks', cloneDeep(selectedList))
-      },
-      getItemClass (item) {
-        const isSelected = this.selectedList.includes(item.gid)
-        return {
-          selected: isSelected
-        }
-      }
-    },
-    watch: {
-      selectedGidList (newVal) {
-        this.selectedList = newVal
-      }
+  defineOptions({ name: 'mo-task-list' })
+
+  const taskStore = useTaskStore()
+
+  const selectedList = ref<string[]>(cloneDeep(taskStore.selectedList) || [])
+
+  const taskList = computed(() => taskStore.taskList)
+  const selectedGidList = computed(() => taskStore.selectedGidList)
+
+  function handleDragSelectChange (newSelectedList: string[]) {
+    selectedList.value = newSelectedList
+    taskStore.selectTasks(cloneDeep(newSelectedList))
+  }
+
+  function getItemClass (item: Record<string, any>) {
+    const isSelected = selectedList.value.includes(item.gid)
+    return {
+      selected: isSelected
     }
   }
+
+  watch(selectedGidList, (newVal) => {
+    selectedList.value = newVal
+  })
 </script>
 
 <style lang="scss">
@@ -86,6 +75,6 @@
 .no-task-inner {
   width: 100%;
   padding-top: 360px;
-  background: transparent url('~@/assets/no-task.svg') top center no-repeat;
+  background: transparent url('@/assets/no-task.svg') top center no-repeat;
 }
 </style>

@@ -4,34 +4,40 @@
       {{ title }}
       <i class="el-icon-arrow-down el-icon--right" />
     </h4>
-    <el-dropdown-menu slot="dropdown" class="subnav-switch-dropdown">
-      <el-dropdown-item :command="sn.route" v-for="sn in subnavs" :key="sn.key">
-        {{ sn.title }}
-      </el-dropdown-item>
-    </el-dropdown-menu>
+    <template #dropdown>
+      <el-dropdown-menu class="subnav-switch-dropdown">
+        <el-dropdown-item :command="sn.route" v-for="sn in subnavs" :key="sn.key">
+          {{ sn.title }}
+        </el-dropdown-item>
+      </el-dropdown-menu>
+    </template>
   </el-dropdown>
 </template>
 
-<script>
-  export default {
-    name: 'mo-subnav-switcher',
-    props: {
-      title: {
-        type: String
-      },
-      subnavs: {
-        type: Array
-      }
-    },
-    methods: {
-      handleRoute (route) {
-        this.$router.push({
-          path: route
-        }).catch(err => {
-          console.log(err)
-        })
-      }
-    }
+<script setup lang="ts">
+  import { useRouter } from 'vue-router'
+
+  defineOptions({ name: 'mo-subnav-switcher' })
+
+  interface SubnavItem {
+    key: string
+    route: string
+    title: string
+  }
+
+  defineProps<{
+    title?: string
+    subnavs?: SubnavItem[]
+  }>()
+
+  const router = useRouter()
+
+  function handleRoute (route: string) {
+    router.push({
+      path: route
+    }).catch((err: Error) => {
+      console.log(err)
+    })
   }
 </script>
 

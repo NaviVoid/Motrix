@@ -7,7 +7,7 @@
     :with-header="true"
     :show-close="true"
     :destroy-on-close="true"
-    :visible="visible"
+    :model-value="visible"
     :before-close="handleClose"
     @closed="handleClosed"
   >
@@ -19,23 +19,23 @@
       @tab-click="handleTabClick"
     >
       <el-tab-pane name="general">
-        <span class="task-detail-tab-label" slot="label"><i class="el-icon-info"></i></span>
+        <template #label><span class="task-detail-tab-label"><i class="el-icon-info"></i></span></template>
         <mo-task-general :task="task" />
       </el-tab-pane>
       <el-tab-pane name="activity" lazy>
-        <span class="task-detail-tab-label" slot="label"><i class="el-icon-s-grid"></i></span>
+        <template #label><span class="task-detail-tab-label"><i class="el-icon-s-grid"></i></span></template>
         <mo-task-activity ref="taskGraphic" :task="task" />
       </el-tab-pane>
       <el-tab-pane name="trackers" lazy v-if="isBT">
-        <span class="task-detail-tab-label" slot="label"><i class="el-icon-discover"></i></span>
+        <template #label><span class="task-detail-tab-label"><i class="el-icon-discover"></i></span></template>
         <mo-task-trackers :task="task" />
       </el-tab-pane>
       <el-tab-pane name="peers" lazy v-if="isBT">
-        <span class="task-detail-tab-label" slot="label"><i class="el-icon-s-custom"></i></span>
+        <template #label><span class="task-detail-tab-label"><i class="el-icon-s-custom"></i></span></template>
         <mo-task-peers :peers="peers" />
       </el-tab-pane>
       <el-tab-pane name="files" lazy>
-        <span class="task-detail-tab-label" slot="label"><i class="el-icon-files"></i></span>
+        <template #label><span class="task-detail-tab-label"><i class="el-icon-files"></i></span></template>
         <mo-task-files
           ref="detailFileList"
           mode="DETAIL"
@@ -62,9 +62,13 @@
   </el-drawer>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed, watch, onMounted, onUnmounted, getCurrentInstance } from 'vue'
+  import { useI18n } from 'vue-i18n'
   import is from 'electron-is'
   import { debounce, merge } from 'lodash'
+  import { usePreferenceStore } from '@/store/preference'
+  import { useTaskStore } from '@/store/task'
   import {
     calcFormLabelWidth,
     checkTaskIsBT,
@@ -78,213 +82,196 @@
     SELECTED_ALL_FILES,
     TASK_STATUS
   } from '@shared/constants'
-  import TaskItemActions from '@/components/Task/TaskItemActions'
-  import TaskGeneral from './TaskGeneral'
-  import TaskActivity from './TaskActivity'
-  import TaskTrackers from './TaskTrackers'
-  import TaskPeers from './TaskPeers'
-  import TaskFiles from './TaskFiles'
+  import MoTaskItemActions from '@/components/Task/TaskItemActions.vue'
+  import MoTaskGeneral from './TaskGeneral.vue'
+  import MoTaskActivity from './TaskActivity.vue'
+  import MoTaskTrackers from './TaskTrackers.vue'
+  import MoTaskPeers from './TaskPeers.vue'
+  import MoTaskFiles from './TaskFiles.vue'
+
+  defineOptions({ name: 'mo-task-detail' })
+
+  const { t } = useI18n()
+  const instance = getCurrentInstance()!
+  const $msg = instance.proxy!.$msg
+
+  const props = defineProps<{
+    gid?: string
+    task?: Record<string, any>
+    files?: any[]
+    peers?: any[]
+    visible?: boolean
+  }>()
 
   const cached = {
-    files: []
+    files: [] as any[]
   }
 
-  export default {
-    name: 'mo-task-detail',
-    components: {
-      [TaskItemActions.name]: TaskItemActions,
-      [TaskGeneral.name]: TaskGeneral,
-      [TaskActivity.name]: TaskActivity,
-      [TaskTrackers.name]: TaskTrackers,
-      [TaskPeers.name]: TaskPeers,
-      [TaskFiles.name]: TaskFiles
-    },
-    props: {
-      gid: {
-        type: String
-      },
-      task: {
-        type: Object
-      },
-      files: {
-        type: Array,
-        default: function () {
-          return []
-        }
-      },
-      peers: {
-        type: Array,
-        default: function () {
-          return []
-        }
-      },
-      visible: {
-        type: Boolean,
-        default: false
-      }
-    },
-    data () {
-      const { locale } = this.$store.state.preference.config
+  const preferenceStore = usePreferenceStore()
+  const taskStore = useTaskStore()
+
+  const form = ref<Record<string, any>>({})
+  const formLabelWidth = ref(calcFormLabelWidth(preferenceStore.config.locale))
+  const locale = ref(preferenceStore.config.locale)
+  const activeTab = ref('general')
+  const graphicWidth = ref(0)
+  const optionsChanged = ref(false)
+  const filesSelection = ref<string>(EMPTY_STRING)
+  const selectionChangedCount = ref(0)
+
+  const taskGraphic = ref<any>(null)
+  const detailFileList = ref<any>(null)
+
+  const isRenderer = computed(() => is.renderer())
+
+  const isBT = computed(() => checkTaskIsBT(props.task))
+
+  const isSeeder = computed(() => checkTaskIsSeeder(props.task))
+
+  const taskStatus = computed(() => {
+    if (isSeeder.value) {
+      return TASK_STATUS.SEEDING
+    } else {
+      return props.task?.status
+    }
+  })
+
+  const fileList = computed(() => {
+    const files = props.files ?? []
+    const result = files.map((item) => {
+      const name = getFileName(item.path)
+      const extension = getFileExtension(name)
       return {
-        form: {},
-        formLabelWidth: calcFormLabelWidth(locale),
-        locale,
-        activeTab: 'general',
-        graphicWidth: 0,
-        optionsChanged: false,
-        filesSelection: EMPTY_STRING,
-        selectionChangedCount: 0
+        idx: Number(item.index),
+        selected: item.selected === 'true',
+        path: item.path,
+        name,
+        extension: `.${extension}`,
+        length: parseInt(item.length, 10),
+        completedLength: item.completedLength
       }
-    },
-    computed: {
-      isRenderer: () => is.renderer(),
-      isBT () {
-        return checkTaskIsBT(this.task)
-      },
-      isSeeder () {
-        return checkTaskIsSeeder(this.task)
-      },
-      taskStatus () {
-        const { task, isSeeder } = this
-        if (isSeeder) {
-          return TASK_STATUS.SEEDING
-        } else {
-          return task.status
-        }
-      },
-      fileList () {
-        const { files } = this
-        const result = files.map((item) => {
-          const name = getFileName(item.path)
-          const extension = getFileExtension(name)
-          return {
-            idx: Number(item.index),
-            selected: item.selected === 'true',
-            path: item.path,
-            name,
-            extension: `.${extension}`,
-            length: parseInt(item.length, 10),
-            completedLength: item.completedLength
-          }
-        })
-        merge(cached.files, result)
-        return cached.files
-      },
-      selectedFileList () {
-        const { fileList } = this
-        const result = fileList.filter((item) => item.selected)
+    })
+    merge(cached.files, result)
+    return cached.files
+  })
 
-        return result
-      }
-    },
-    mounted () {
-      window.addEventListener('resize', this.handleAppResize)
-    },
-    destroyed () {
-      window.removeEventListener('resize', this.handleAppResize)
-      cached.files = []
-    },
-    watch: {
-      gid () {
-        cached.files = []
-      }
-    },
-    methods: {
-      handleClose (done) {
-        window.removeEventListener('resize', this.handleAppResize)
-        this.$store.dispatch('task/hideTaskDetail')
-      },
-      handleClosed (done) {
-        this.$store.dispatch('task/updateCurrentTaskGid', EMPTY_STRING)
-        this.$store.dispatch('task/updateCurrentTaskItem', null)
-        this.optionsChanged = false
-        this.resetFaskFilesSelection()
-      },
-      handleTabBeforeLeave (activeName, oldActiveName) {
-        this.activeTab = activeName
-        this.optionsChanged = false
-        switch (oldActiveName) {
-        case 'peers':
-          this.$store.dispatch('task/toggleEnabledFetchPeers', false)
-          break
-        case 'files':
-          this.resetFaskFilesSelection()
-          break
-        }
-      },
-      handleTabClick (tab) {
-        const { name } = tab
-        switch (name) {
-        case 'peers':
-          this.$store.dispatch('task/toggleEnabledFetchPeers', true)
-          break
-        case 'files':
-          setImmediate(() => {
-            this.updateFilesListSelection()
-          })
-          break
-        }
-      },
-      resetChanged () {
-        const { activeTab } = this
-        switch (activeTab) {
-        case 'files':
-          this.resetFaskFilesSelection()
-          this.updateFilesListSelection()
-          break
-        }
-        this.optionsChanged = false
-      },
-      saveChanged () {
-        const { activeTab } = this
-        switch (activeTab) {
-        case 'files':
-          this.saveFaskFilesSelection()
-          break
-        }
-        this.optionsChanged = false
-      },
-      handleAppResize () {
-        debounce(() => {
-          console.log('resize===>', this.activeTab, this.$refs.taskGraphic)
-          if (this.activeTab === 'activity' && this.$refs.taskGraphic) {
-            this.$refs.taskGraphic.updateGraphicWidth()
-          }
-        }, 250)
-      },
-      updateFilesListSelection () {
-        if (!this.$refs.detailFileList) {
-          return
-        }
+  const selectedFileList = computed(() => {
+    return fileList.value.filter((item) => item.selected)
+  })
 
-        const { selectedFileList } = this
-        this.$refs.detailFileList.toggleSelection(selectedFileList)
-      },
-      handleSelectionChange (val) {
-        this.filesSelection = val
-        this.selectionChangedCount += 1
-        if (this.selectionChangedCount > 1) {
-          this.optionsChanged = true
-        }
-      },
-      resetFaskFilesSelection () {
-        this.filesSelection = EMPTY_STRING
-        this.selectionChangedCount = 0
-      },
-      saveFaskFilesSelection () {
-        const { gid, filesSelection } = this
-        if (filesSelection === NONE_SELECTED_FILES) {
-          this.$msg.warning(this.$t('task.select-at-least-one'))
-          return
-        }
+  watch(() => props.gid, () => {
+    cached.files = []
+  })
 
-        const options = {
-          selectFile: filesSelection !== SELECTED_ALL_FILES ? filesSelection : EMPTY_STRING
-        }
-        this.$store.dispatch('task/changeTaskOption', { gid, options })
-      }
+  function handleClose (done: any) {
+    window.removeEventListener('resize', handleAppResize)
+    taskStore.hideTaskDetail()
+  }
+
+  function handleClosed (done: any) {
+    taskStore.updateCurrentTaskGid(EMPTY_STRING)
+    taskStore.updateCurrentTaskItem(null)
+    optionsChanged.value = false
+    resetFaskFilesSelection()
+  }
+
+  function handleTabBeforeLeave (activeName: string, oldActiveName: string) {
+    activeTab.value = activeName
+    optionsChanged.value = false
+    switch (oldActiveName) {
+    case 'peers':
+      taskStore.toggleEnabledFetchPeers(false)
+      break
+    case 'files':
+      resetFaskFilesSelection()
+      break
     }
   }
+
+  function handleTabClick (tab: any) {
+    const { name } = tab
+    switch (name) {
+    case 'peers':
+      taskStore.toggleEnabledFetchPeers(true)
+      break
+    case 'files':
+      setImmediate(() => {
+        updateFilesListSelection()
+      })
+      break
+    }
+  }
+
+  function resetChanged () {
+    switch (activeTab.value) {
+    case 'files':
+      resetFaskFilesSelection()
+      updateFilesListSelection()
+      break
+    }
+    optionsChanged.value = false
+  }
+
+  function saveChanged () {
+    switch (activeTab.value) {
+    case 'files':
+      saveFaskFilesSelection()
+      break
+    }
+    optionsChanged.value = false
+  }
+
+  function handleAppResize () {
+    debounce(() => {
+      console.log('resize===>', activeTab.value, taskGraphic.value)
+      if (activeTab.value === 'activity' && taskGraphic.value) {
+        taskGraphic.value.updateGraphicWidth()
+      }
+    }, 250)
+  }
+
+  function updateFilesListSelection () {
+    if (!detailFileList.value) {
+      return
+    }
+
+    detailFileList.value.toggleSelection(selectedFileList.value)
+  }
+
+  function handleSelectionChange (val: string) {
+    filesSelection.value = val
+    selectionChangedCount.value += 1
+    if (selectionChangedCount.value > 1) {
+      optionsChanged.value = true
+    }
+  }
+
+  function resetFaskFilesSelection () {
+    filesSelection.value = EMPTY_STRING
+    selectionChangedCount.value = 0
+  }
+
+  function saveFaskFilesSelection () {
+    const gid = props.gid
+    if (filesSelection.value === NONE_SELECTED_FILES) {
+      $msg.warning(t('task.select-at-least-one'))
+      return
+    }
+
+    const options = {
+      selectFile: filesSelection.value !== SELECTED_ALL_FILES ? filesSelection.value : EMPTY_STRING
+    }
+    taskStore.changeTaskOption({ gid, options })
+  }
+
+  onMounted(() => {
+    window.addEventListener('resize', handleAppResize)
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleAppResize)
+    cached.files = []
+  })
 </script>
 
 <style lang="scss">

@@ -13,7 +13,7 @@
         class="form-preference"
         ref="basicForm"
         label-position="right"
-        size="mini"
+        size="small"
         :model="form"
         :rules="rules"
       >
@@ -111,15 +111,17 @@
           :label-width="formLabelWidth"
         >
           <el-input placeholder="" v-model="form.dir" :readonly="isMas">
-            <mo-history-directory
-              slot="prepend"
-              @selected="handleHistoryDirectorySelected"
-            />
-            <mo-select-directory
-              v-if="isRenderer"
-              slot="append"
-              @selected="handleNativeDirectorySelected"
-            />
+            <template #prepend>
+              <mo-history-directory
+                @selected="handleHistoryDirectorySelected"
+              />
+            </template>
+            <template #append>
+              <mo-select-directory
+                v-if="isRenderer"
+                @selected="handleNativeDirectorySelected"
+              />
+            </template>
           </el-input>
           <div class="el-form-item__info" v-if="isMas" style="margin-top: 8px;">
             {{ $t('preferences.mas-default-dir-tips') }}
@@ -293,15 +295,19 @@
   </el-container>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed, getCurrentInstance } from 'vue'
+  import { useI18n } from 'vue-i18n'
+  import { onBeforeRouteLeave } from 'vue-router'
   import is from 'electron-is'
-  import { dialog } from '@electron/remote'
-  import { mapState } from 'vuex'
+  import { storeToRefs } from 'pinia'
+  import { useAppStore } from '@/store/app'
+  import { usePreferenceStore } from '@/store/preference'
   import { cloneDeep, extend, isEmpty } from 'lodash'
-  import SubnavSwitcher from '@/components/Subnav/SubnavSwitcher'
-  import HistoryDirectory from '@/components/Preference/HistoryDirectory'
-  import SelectDirectory from '@/components/Native/SelectDirectory'
-  import ThemeSwitcher from '@/components/Preference/ThemeSwitcher'
+  import MoSubnavSwitcher from '@/components/Subnav/SubnavSwitcher.vue'
+  import MoHistoryDirectory from '@/components/Preference/HistoryDirectory.vue'
+  import MoSelectDirectory from '@/components/Native/SelectDirectory.vue'
+  import MoThemeSwitcher from '@/components/Preference/ThemeSwitcher.vue'
   import { availableLanguages, getLanguage } from '@shared/locales'
   import { getLocaleManager } from '@/components/Locale'
   import {
@@ -320,7 +326,17 @@
   } from '@shared/constants'
   import { reduceTrackerString } from '@shared/utils/tracker'
 
-  const initForm = (config) => {
+  defineOptions({ name: 'mo-preference-basic' })
+
+  const { t } = useI18n()
+  const instance = getCurrentInstance()!
+  const $msg = instance.proxy!.$msg
+
+  const preferenceStore = usePreferenceStore()
+  const appStore = useAppStore()
+  const { config } = storeToRefs(preferenceStore)
+
+  const initForm = (cfg: any) => {
     const {
       autoHideWindow,
       btForceEncryption,
@@ -349,7 +365,7 @@
       taskNotification,
       theme,
       traySpeedometer
-    } = config
+    } = cfg
 
     const btAutoDownloadContent = followTorrent &&
       followMetalink &&
@@ -360,7 +376,7 @@
       btAutoDownloadContent,
       btForceEncryption,
       btSaveMetadata,
-      continue: config.continue,
+      continue: cfg.continue,
       dir,
       engineMaxConnectionPerServer,
       followMetalink,
@@ -389,268 +405,265 @@
     return result
   }
 
-  export default {
-    name: 'mo-preference-basic',
-    components: {
-      [SubnavSwitcher.name]: SubnavSwitcher,
-      [HistoryDirectory.name]: HistoryDirectory,
-      [SelectDirectory.name]: SelectDirectory,
-      [ThemeSwitcher.name]: ThemeSwitcher
-    },
-    data () {
-      const { locale } = this.$store.state.preference.config
-      const formOriginal = initForm(this.$store.state.preference.config)
-      let form = {}
-      form = initForm(extend(form, formOriginal, changedConfig.basic))
+  const formOriginalInit = initForm(preferenceStore.config)
+  let formInit: any = {}
+  formInit = initForm(extend(formInit, formOriginalInit, changedConfig.basic))
 
-      return {
-        form,
-        formLabelWidth: calcFormLabelWidth(locale),
-        formOriginal,
-        locales: availableLanguages,
-        rules: {}
+  const form = ref<any>(formInit)
+  const formLabelWidth = ref(calcFormLabelWidth(preferenceStore.config.locale))
+  const formOriginal = ref<any>(formOriginalInit)
+  const locales = ref(availableLanguages)
+  const rules = ref({})
+
+  const basicForm = ref<any>(null)
+  const themeSwitcher = ref<any>(null)
+
+  const isRenderer = computed(() => is.renderer())
+  const isMac = computed(() => is.macOS())
+  const isMas = computed(() => is.mas())
+  const isLinux = computed(() => is.linux())
+
+  const title = computed(() => t('preferences.basic'))
+
+  const maxConcurrentDownloads = computed(() => ENGINE_MAX_CONCURRENT_DOWNLOADS)
+
+  const downloadUnit = computed({
+    get () {
+      const { maxOverallDownloadLimit } = form.value
+      return extractSpeedUnit(maxOverallDownloadLimit)
+    },
+    set (_value: string) {
+      // setter needed for v-model binding; actual update handled in handleDownloadChange
+    }
+  })
+
+  const uploadUnit = computed({
+    get () {
+      const { maxOverallUploadLimit } = form.value
+      return extractSpeedUnit(maxOverallUploadLimit)
+    },
+    set (_value: string) {
+      // setter needed for v-model binding; actual update handled in handleUploadChange
+    }
+  })
+
+  const maxOverallDownloadLimitParsed = computed({
+    get () {
+      return parseInt(form.value.maxOverallDownloadLimit)
+    },
+    set (value: number) {
+      const limit = value > 0 ? `${value}${downloadUnit.value}` : 0
+      form.value.maxOverallDownloadLimit = limit
+    }
+  })
+
+  const maxOverallUploadLimitParsed = computed({
+    get () {
+      return parseInt(form.value.maxOverallUploadLimit)
+    },
+    set (value: number) {
+      const limit = value > 0 ? `${value}${uploadUnit.value}` : 0
+      form.value.maxOverallUploadLimit = limit
+    }
+  })
+
+  const runModes = computed(() => {
+    let result = [
+      {
+        label: t('preferences.run-mode-standard'),
+        value: APP_RUN_MODE.STANDARD
+      },
+      {
+        label: t('preferences.run-mode-tray'),
+        value: APP_RUN_MODE.TRAY
       }
-    },
-    computed: {
-      isRenderer: () => is.renderer(),
-      isMac: () => is.macOS(),
-      isMas: () => is.mas(),
-      isLinux () { return is.linux() },
-      title () {
-        return this.$t('preferences.basic')
-      },
-      maxConcurrentDownloads () {
-        return ENGINE_MAX_CONCURRENT_DOWNLOADS
-      },
-      maxOverallDownloadLimitParsed: {
-        get () {
-          return parseInt(this.form.maxOverallDownloadLimit)
-        },
-        set (value) {
-          const limit = value > 0 ? `${value}${this.downloadUnit}` : 0
-          this.form.maxOverallDownloadLimit = limit
-        }
-      },
-      maxOverallUploadLimitParsed: {
-        get () {
-          return parseInt(this.form.maxOverallUploadLimit)
-        },
-        set (value) {
-          const limit = value > 0 ? `${value}${this.uploadUnit}` : 0
-          this.form.maxOverallUploadLimit = limit
-        }
-      },
-      downloadUnit: {
-        get () {
-          const { maxOverallDownloadLimit } = this.form
-          return extractSpeedUnit(maxOverallDownloadLimit)
-        },
-        set (value) {
-          return value
-        }
-      },
-      uploadUnit: {
-        get () {
-          const { maxOverallUploadLimit } = this.form
-          return extractSpeedUnit(maxOverallUploadLimit)
-        },
-        set (value) {
-          return value
-        }
-      },
-      runModes () {
-        let result = [
-          {
-            label: this.$t('preferences.run-mode-standard'),
-            value: APP_RUN_MODE.STANDARD
-          },
-          {
-            label: this.$t('preferences.run-mode-tray'),
-            value: APP_RUN_MODE.TRAY
-          }
-        ]
+    ]
 
-        if (this.isMac) {
-          result = [
-            ...result,
-            {
-              label: this.$t('preferences.run-mode-hide-tray'),
-              value: APP_RUN_MODE.HIDE_TRAY
-            }
-          ]
+    if (isMac.value) {
+      result = [
+        ...result,
+        {
+          label: t('preferences.run-mode-hide-tray'),
+          value: APP_RUN_MODE.HIDE_TRAY
         }
+      ]
+    }
 
-        return result
+    return result
+  })
+
+  const speedUnits = computed(() => {
+    return [
+      {
+        label: 'KB/s',
+        value: 'K'
       },
-      speedUnits () {
-        return [
-          {
-            label: 'KB/s',
-            value: 'K'
-          },
-          {
-            label: 'MB/s',
-            value: 'M'
-          }
-        ]
+      {
+        label: 'MB/s',
+        value: 'M'
+      }
+    ]
+  })
+
+  const subnavs = computed(() => {
+    return [
+      {
+        key: 'basic',
+        title: t('preferences.basic'),
+        route: '/preference/basic'
       },
-      subnavs () {
-        return [
-          {
-            key: 'basic',
-            title: this.$t('preferences.basic'),
-            route: '/preference/basic'
-          },
-          {
-            key: 'advanced',
-            title: this.$t('preferences.advanced'),
-            route: '/preference/advanced'
-          },
-          {
-            key: 'lab',
-            title: this.$t('preferences.lab'),
-            route: '/preference/lab'
-          }
-        ]
+      {
+        key: 'advanced',
+        title: t('preferences.advanced'),
+        route: '/preference/advanced'
       },
-      showHideAppMenuOption () {
-        return is.windows() || is.linux()
-      },
-      rpcDefaultPort () {
-        return ENGINE_RPC_PORT
-      },
-      ...mapState('preference', {
-        config: state => state.config
+      {
+        key: 'lab',
+        title: t('preferences.lab'),
+        route: '/preference/lab'
+      }
+    ]
+  })
+
+  const showHideAppMenuOption = computed(() => is.windows() || is.linux())
+
+  const rpcDefaultPort = computed(() => ENGINE_RPC_PORT)
+
+  function handleLocaleChange (locale: string) {
+    const lng = getLanguage(locale)
+    getLocaleManager().changeLanguage(lng)
+  }
+
+  function handleThemeChange (theme: string) {
+    form.value.theme = theme
+  }
+
+  function handleDownloadChange (value: string) {
+    const speedLimit = parseInt(form.value.maxOverallDownloadLimit, 10)
+    downloadUnit.value = value
+    const limit = speedLimit > 0 ? `${speedLimit}${value}` : 0
+    form.value.maxOverallDownloadLimit = limit
+  }
+
+  function handleUploadChange (value: string) {
+    const speedLimit = parseInt(form.value.maxOverallUploadLimit, 10)
+    uploadUnit.value = value
+    const limit = speedLimit > 0 ? `${speedLimit}${value}` : 0
+    form.value.maxOverallUploadLimit = limit
+  }
+
+  function onKeepSeedingChange (enable: boolean) {
+    form.value.seedRatio = enable ? 0 : 1
+    form.value.seedTime = enable ? 525600 : 60
+  }
+
+  function handleHistoryDirectorySelected (dir: string) {
+    form.value.dir = dir
+  }
+
+  function handleNativeDirectorySelected (dir: string) {
+    form.value.dir = dir
+    preferenceStore.recordHistoryDirectory(dir)
+  }
+
+  function onDirectorySelected (dir: string) {
+    form.value.dir = dir
+  }
+
+  function syncFormConfig () {
+    preferenceStore.fetchPreference()
+      .then((cfg: any) => {
+        form.value = initForm(cfg)
+        formOriginal.value = cloneDeep(form.value)
       })
-    },
-    methods: {
-      handleLocaleChange (locale) {
-        const lng = getLanguage(locale)
-        getLocaleManager().changeLanguage(lng)
-      },
-      handleThemeChange (theme) {
-        this.form.theme = theme
-      },
-      handleDownloadChange (value) {
-        const speedLimit = parseInt(this.form.maxOverallDownloadLimit, 10)
-        this.downloadUnit = value
-        const limit = speedLimit > 0 ? `${speedLimit}${value}` : 0
-        this.form.maxOverallDownloadLimit = limit
-      },
-      handleUploadChange (value) {
-        const speedLimit = parseInt(this.form.maxOverallUploadLimit, 10)
-        this.uploadUnit = value
-        const limit = speedLimit > 0 ? `${speedLimit}${value}` : 0
-        this.form.maxOverallUploadLimit = limit
-      },
-      onKeepSeedingChange (enable) {
-        this.form.seedRatio = enable ? 0 : 1
-        this.form.seedTime = enable ? 525600 : 60
-      },
-      handleHistoryDirectorySelected (dir) {
-        this.form.dir = dir
-      },
-      handleNativeDirectorySelected (dir) {
-        this.form.dir = dir
-        this.$store.dispatch('preference/recordHistoryDirectory', dir)
-      },
-      onDirectorySelected (dir) {
-        this.form.dir = dir
-      },
-      syncFormConfig () {
-        this.$store.dispatch('preference/fetchPreference')
-          .then((config) => {
-            this.form = initForm(config)
-            this.formOriginal = cloneDeep(this.form)
-          })
-      },
-      submitForm (formName) {
-        this.$refs[formName].validate((valid) => {
-          if (!valid) {
-            console.error('[Motrix] preference form valid:', valid)
-            return false
-          }
+  }
 
-          const data = {
-            ...diffConfig(this.formOriginal, this.form),
-            ...changedConfig.advanced
-          }
-
-          const {
-            autoHideWindow,
-            btAutoDownloadContent,
-            btTracker,
-            rpcListenPort
-          } = data
-
-          if ('btAutoDownloadContent' in data) {
-            data.followTorrent = btAutoDownloadContent
-            data.followMetalink = btAutoDownloadContent
-            data.pauseMetadata = !btAutoDownloadContent
-          }
-
-          if (btTracker) {
-            data.btTracker = reduceTrackerString(convertLineToComma(btTracker))
-          }
-
-          if (rpcListenPort === EMPTY_STRING) {
-            data.rpcListenPort = this.rpcDefaultPort
-          }
-
-          console.log('[Motrix] preference changed data:', data)
-
-          this.$store.dispatch('preference/save', data)
-            .then(() => {
-              this.$store.dispatch('app/fetchEngineOptions')
-              this.syncFormConfig()
-              this.$msg.success(this.$t('preferences.save-success-message'))
-            })
-            .catch(() => {
-              this.$msg.success(this.$t('preferences.save-fail-message'))
-            })
-
-          changedConfig.basic = {}
-          changedConfig.advanced = {}
-
-          if (this.isRenderer) {
-            if ('autoHideWindow' in data) {
-              this.$electron.ipcRenderer.send('command',
-                                              'application:auto-hide-window', autoHideWindow)
-            }
-
-            if (checkIsNeedRestart(data)) {
-              this.$electron.ipcRenderer.send('command', 'application:relaunch')
-            }
-          }
-        })
-      },
-      resetForm (formName) {
-        this.syncFormConfig()
+  function submitForm (formName: string) {
+    basicForm.value.validate((valid: boolean) => {
+      if (!valid) {
+        console.error('[Motrix] preference form valid:', valid)
+        return false
       }
-    },
-    beforeRouteLeave (to, from, next) {
-      changedConfig.basic = diffConfig(this.formOriginal, this.form)
-      if (to.path === '/preference/advanced') {
+
+      const data: any = {
+        ...diffConfig(formOriginal.value, form.value),
+        ...changedConfig.advanced
+      }
+
+      const {
+        autoHideWindow,
+        btAutoDownloadContent,
+        btTracker,
+        rpcListenPort
+      } = data
+
+      if ('btAutoDownloadContent' in data) {
+        data.followTorrent = btAutoDownloadContent
+        data.followMetalink = btAutoDownloadContent
+        data.pauseMetadata = !btAutoDownloadContent
+      }
+
+      if (btTracker) {
+        data.btTracker = reduceTrackerString(convertLineToComma(btTracker))
+      }
+
+      if (rpcListenPort === EMPTY_STRING) {
+        data.rpcListenPort = rpcDefaultPort.value
+      }
+
+      console.log('[Motrix] preference changed data:', data)
+
+      preferenceStore.save(data)
+        .then(() => {
+          appStore.fetchEngineOptions()
+          syncFormConfig()
+          $msg.success(t('preferences.save-success-message'))
+        })
+        .catch(() => {
+          $msg.success(t('preferences.save-fail-message'))
+        })
+
+      changedConfig.basic = {}
+      changedConfig.advanced = {}
+
+      if (isRenderer.value) {
+        if ('autoHideWindow' in data) {
+          window.electronAPI.sendCommand('application:auto-hide-window', autoHideWindow)
+        }
+
+        if (checkIsNeedRestart(data)) {
+          window.electronAPI.sendCommand('application:relaunch')
+        }
+      }
+    })
+  }
+
+  function resetForm (formName: string) {
+    syncFormConfig()
+  }
+
+  onBeforeRouteLeave((to, from, next) => {
+    changedConfig.basic = diffConfig(formOriginal.value, form.value)
+    if (to.path === '/preference/advanced') {
+      next()
+    } else {
+      if (isEmpty(changedConfig.basic) && isEmpty(changedConfig.advanced)) {
         next()
       } else {
-        if (isEmpty(changedConfig.basic) && isEmpty(changedConfig.advanced)) {
-          next()
-        } else {
-          dialog.showMessageBox({
-            type: 'warning',
-            title: this.$t('preferences.not-saved'),
-            message: this.$t('preferences.not-saved-confirm'),
-            buttons: [this.$t('app.yes'), this.$t('app.no')],
-            cancelId: 1
-          }).then(({ response }) => {
-            if (response === 0) {
-              changedConfig.basic = {}
-              changedConfig.advanced = {}
-              next()
-            }
-          })
-        }
+        window.electronAPI.showMessageBox({
+          type: 'warning',
+          title: t('preferences.not-saved'),
+          message: t('preferences.not-saved-confirm'),
+          buttons: [t('app.yes'), t('app.no')],
+          cancelId: 1
+        }).then(({ response }: any) => {
+          if (response === 0) {
+            changedConfig.basic = {}
+            changedConfig.advanced = {}
+            next()
+          }
+        })
       }
     }
-  }
+  })
 </script>

@@ -18,11 +18,12 @@
     </el-form-item>
     <el-form-item :label="`${$t('task.task-dir')}: `">
       <el-input placeholder="" readonly v-model="path">
-        <mo-show-in-folder
-          slot="append"
-          v-if="isRenderer"
-          :path="path"
-        />
+        <template #append>
+          <mo-show-in-folder
+            v-if="isRenderer"
+            :path="path"
+          />
+        </template>
       </el-input>
     </el-form-item>
     <el-form-item :label="`${$t('task.task-status')}: `">
@@ -55,7 +56,7 @@
     </el-form-item>
     <el-form-item :label="`${$t('task.task-piece-length')}: `" v-if="isBT">
       <div class="form-static-value">
-        {{ task.pieceLength | bytesToSize }}
+        {{ bytesToSize(task.pieceLength) }}
       </div>
     </el-form-item>
     <el-form-item :label="`${$t('task.task-num-pieces')}: `" v-if="isBT">
@@ -65,7 +66,7 @@
     </el-form-item>
     <el-form-item :label="`${$t('task.task-bittorrent-creation-date')}: `" v-if="isBT">
       <div class="form-static-value">
-        {{ task.bittorrent.creationDate | localeDateTimeFormat(locale) }}
+        {{ localeDateTimeFormat(task.bittorrent.creationDate, locale) }}
       </div>
     </el-form-item>
     <el-form-item :label="`${$t('task.task-bittorrent-comment')}: `" v-if="isBT">
@@ -76,9 +77,12 @@
   </el-form>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed, getCurrentInstance } from 'vue'
   import is from 'electron-is'
-  import { mapState } from 'vuex'
+  import { useI18n } from 'vue-i18n'
+  import { useAppStore } from '@/store/app'
+  import { usePreferenceStore } from '@/store/preference'
   import {
     bytesToSize,
     calcFormLabelWidth,
@@ -90,89 +94,75 @@
   } from '@shared/utils'
   import { APP_THEME, TASK_STATUS } from '@shared/constants'
   import { getTaskFullPath } from '@/utils/native'
-  import ShowInFolder from '@/components/Native/ShowInFolder'
-  import TaskStatus from '@/components/Task/TaskStatus'
+  import MoShowInFolder from '@/components/Native/ShowInFolder.vue'
+  import MoTaskStatus from '@/components/Task/TaskStatus.vue'
   import '@/components/Icons/folder'
   import '@/components/Icons/link'
 
-  export default {
-    name: 'mo-task-general',
-    components: {
-      [ShowInFolder.name]: ShowInFolder,
-      [TaskStatus.name]: TaskStatus
-    },
-    props: {
-      task: {
-        type: Object
-      }
-    },
-    data () {
-      const { locale } = this.$store.state.preference.config
-      return {
-        form: {},
-        formLabelWidth: calcFormLabelWidth(locale),
-        locale
-      }
-    },
-    computed: {
-      isRenderer: () => is.renderer(),
-      ...mapState('app', {
-        systemTheme: state => state.systemTheme
-      }),
-      ...mapState('preference', {
-        theme: state => state.config.theme
-      }),
-      currentTheme () {
-        if (this.theme === APP_THEME.AUTO) {
-          return this.systemTheme
-        } else {
-          return this.theme
-        }
-      },
-      taskFullName () {
-        return getTaskName(this.task, {
-          defaultName: this.$t('task.get-task-name'),
-          maxLen: -1
-        })
-      },
-      taskName () {
-        return getTaskName(this.task, {
-          defaultName: this.$t('task.get-task-name'),
-          maxLen: 32
-        })
-      },
-      isSeeder () {
-        return checkTaskIsSeeder(this.task)
-      },
-      taskStatus () {
-        const { task, isSeeder } = this
-        if (isSeeder) {
-          return TASK_STATUS.SEEDING
-        } else {
-          return task.status
-        }
-      },
-      path () {
-        return getTaskFullPath(this.task)
-      },
-      isBT () {
-        return checkTaskIsBT(this.task)
-      }
-    },
-    filters: {
-      bytesToSize,
-      localeDateTimeFormat
-    },
-    methods: {
-      handleCopyClick () {
-        const { task } = this
-        const uri = getTaskUri(task)
-        navigator.clipboard.writeText(uri)
-          .then(() => {
-            this.$msg.success(this.$t('task.copy-link-success'))
-          })
-      }
+  defineOptions({ name: 'mo-task-general' })
+
+  const props = defineProps<{
+    task?: Record<string, any>
+  }>()
+
+  const { t } = useI18n()
+  const instance = getCurrentInstance()!
+  const $msg = instance.proxy!.$msg
+
+  const appStore = useAppStore()
+  const preferenceStore = usePreferenceStore()
+  const { locale } = preferenceStore.config
+
+  const form = ref<Record<string, any>>({})
+  const formLabelWidth = calcFormLabelWidth(locale)
+
+  const isRenderer = is.renderer()
+
+  const systemTheme = computed(() => appStore.systemTheme)
+  const theme = computed(() => preferenceStore.config.theme)
+
+  const currentTheme = computed(() => {
+    if (theme.value === APP_THEME.AUTO) {
+      return systemTheme.value
+    } else {
+      return theme.value
     }
+  })
+
+  const taskFullName = computed(() => {
+    return getTaskName(props.task, {
+      defaultName: t('task.get-task-name'),
+      maxLen: -1
+    })
+  })
+
+  const taskName = computed(() => {
+    return getTaskName(props.task, {
+      defaultName: t('task.get-task-name'),
+      maxLen: 32
+    })
+  })
+
+  const isSeeder = computed(() => checkTaskIsSeeder(props.task))
+
+  const taskStatus = computed(() => {
+    if (isSeeder.value) {
+      return TASK_STATUS.SEEDING
+    } else {
+      return props.task?.status
+    }
+  })
+
+  const path = computed(() => getTaskFullPath(props.task))
+
+  const isBT = computed(() => checkTaskIsBT(props.task))
+
+  function handleCopyClick () {
+    const uri = getTaskUri(props.task)
+    navigator.clipboard.writeText(uri)
+      .then(() => {
+        $msg.success(t('task.copy-link-success'))
+      })
   }
 </script>
 

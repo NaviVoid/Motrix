@@ -32,16 +32,20 @@
   </el-container>
 </template>
 
-<script>
-  import { dialog } from '@electron/remote'
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { computed, getCurrentInstance, onMounted, onUnmounted, watch } from 'vue'
+  import { storeToRefs } from 'pinia'
+  import { useI18n } from 'vue-i18n'
+  import { useTaskStore } from '@/store/task'
+  import { usePreferenceStore } from '@/store/preference'
+  import { useAppStore } from '@/store/app'
 
   import { commands } from '@/components/CommandManager/instance'
   import { ADD_TASK_TYPE } from '@shared/constants'
-  import TaskSubnav from '@/components/Subnav/TaskSubnav'
-  import TaskActions from '@/components/Task/TaskActions'
-  import TaskList from '@/components/Task/TaskList'
-  import SubnavSwitcher from '@/components/Subnav/SubnavSwitcher'
+  import MoTaskSubnav from '@/components/Subnav/TaskSubnav.vue'
+  import MoTaskActions from '@/components/Task/TaskActions.vue'
+  import MoTaskList from '@/components/Task/TaskList.vue'
+  import MoSubnavSwitcher from '@/components/Subnav/SubnavSwitcher.vue'
   import {
     getTaskUri,
     parseHeader
@@ -52,360 +56,366 @@
     moveTaskFilesToTrash
   } from '@/utils/native'
 
-  export default {
-    name: 'mo-content-task',
-    components: {
-      [TaskSubnav.name]: TaskSubnav,
-      [TaskActions.name]: TaskActions,
-      [TaskList.name]: TaskList,
-      [SubnavSwitcher.name]: SubnavSwitcher
+  defineOptions({ name: 'mo-content-task' })
+
+  const props = withDefaults(defineProps<{
+    status?: string
+  }>(), {
+    status: 'active'
+  })
+
+  const { t } = useI18n()
+  const instance = getCurrentInstance()!
+  const $msg = instance.proxy!.$msg
+
+  const taskStore = useTaskStore()
+  const preferenceStore = usePreferenceStore()
+  const appStore = useAppStore()
+
+  const { taskList, selectedGidList } = storeToRefs(taskStore)
+  const selectedGidListCount = computed(() => selectedGidList.value.length)
+
+  const noConfirmBeforeDelete = computed(() => preferenceStore.config.noConfirmBeforeDeleteTask)
+
+  const subnavs = computed(() => [
+    {
+      key: 'active',
+      title: t('task.active'),
+      route: '/task/active'
     },
-    props: {
-      status: {
-        type: String,
-        default: 'active'
+    {
+      key: 'waiting',
+      title: t('task.waiting'),
+      route: '/task/waiting'
+    },
+    {
+      key: 'stopped',
+      title: t('task.stopped'),
+      route: '/task/stopped'
+    }
+  ])
+
+  const title = computed(() => {
+    const subnav = subnavs.value.find((item) => item.key === props.status)
+    return subnav.title
+  })
+
+  watch(() => props.status, () => {
+    changeCurrentList()
+  })
+
+  function changeCurrentList () {
+    taskStore.changeCurrentList(props.status)
+  }
+
+  function directAddTask (uri: string, options: Record<string, any> = {}) {
+    const uris = [uri]
+    const payload = {
+      uris,
+      options: {
+        ...options
       }
-    },
-    computed: {
-      ...mapState('task', {
-        taskList: state => state.taskList,
-        selectedGidList: state => state.selectedGidList,
-        selectedGidListCount: state => state.selectedGidList.length
-      }),
-      ...mapState('preference', {
-        noConfirmBeforeDelete: state => state.config.noConfirmBeforeDeleteTask
-      }),
-      subnavs () {
-        return [
-          {
-            key: 'active',
-            title: this.$t('task.active'),
-            route: '/task/active'
-          },
-          {
-            key: 'waiting',
-            title: this.$t('task.waiting'),
-            route: '/task/waiting'
-          },
-          {
-            key: 'stopped',
-            title: this.$t('task.stopped'),
-            route: '/task/stopped'
-          }
-        ]
-      },
-      title () {
-        const subnav = this.subnavs.find((item) => item.key === this.status)
-        return subnav.title
+    }
+    taskStore.addUri(payload)
+      .catch((err: any) => {
+        $msg.error(err.message)
+      })
+  }
+
+  function showAddTaskDialog (uri: string, options: Record<string, any> = {}) {
+    const {
+      header,
+      ...rest
+    } = options
+    console.log('[Motrix] show add task dialog options: ', options)
+
+    const headers = parseHeader(header)
+    const newOptions = {
+      ...rest,
+      ...headers
+    }
+
+    appStore.updateAddTaskUrl(uri)
+    appStore.updateAddTaskOptions(newOptions)
+    appStore.showAddTaskDialog(ADD_TASK_TYPE.URI)
+  }
+
+  async function deleteTaskFiles (task: any) {
+    try {
+      const result = await moveTaskFilesToTrash(task)
+
+      if (!result) {
+        throw new Error('task.remove-task-file-fail')
       }
-    },
-    watch: {
-      status: 'onStatusChange'
-    },
-    methods: {
-      onStatusChange () {
-        this.changeCurrentList()
-      },
-      changeCurrentList () {
-        this.$store.dispatch('task/changeCurrentList', this.status)
-      },
-      directAddTask (uri, options = {}) {
-        const uris = [uri]
-        const payload = {
-          uris,
-          options: {
-            ...options
-          }
-        }
-        this.$store.dispatch('task/addUri', payload)
-          .catch((err) => {
-            this.$msg.error(err.message)
-          })
-      },
-      showAddTaskDialog (uri, options = {}) {
-        const {
-          header,
-          ...rest
-        } = options
-        console.log('[Motrix] show add task dialog options: ', options)
-
-        const headers = parseHeader(header)
-        const newOptions = {
-          ...rest,
-          ...headers
-        }
-
-        this.$store.dispatch('app/updateAddTaskUrl', uri)
-        this.$store.dispatch('app/updateAddTaskOptions', newOptions)
-        this.$store.dispatch('app/showAddTaskDialog', ADD_TASK_TYPE.URI)
-      },
-      deleteTaskFiles (task) {
-        try {
-          const result = moveTaskFilesToTrash(task)
-
-          if (!result) {
-            throw new Error('task.remove-task-file-fail')
-          }
-        } catch (err) {
-          this.$msg.error(this.$t(err.message))
-        }
-      },
-      removeTask (task, taskName, isRemoveWithFiles = false) {
-        this.$store.dispatch('task/forcePauseTask', task)
-          .finally(() => {
-            if (isRemoveWithFiles) {
-              this.deleteTaskFiles(task)
-            }
-
-            return this.removeTaskItem(task, taskName)
-          })
-      },
-      removeTaskRecord (task, taskName, isRemoveWithFiles = false) {
-        this.$store.dispatch('task/forcePauseTask', task)
-          .finally(() => {
-            if (isRemoveWithFiles) {
-              this.deleteTaskFiles(task)
-            }
-
-            return this.removeTaskRecordItem(task, taskName)
-          })
-      },
-      async removeTaskItem (task, taskName) {
-        try {
-          await this.$store.dispatch('task/removeTask', task)
-          this.$msg.success(this.$t('task.delete-task-success', {
-            taskName
-          }))
-        } catch ({ code }) {
-          if (code === 1) {
-            this.$msg.error(this.$t('task.delete-task-fail', {
-              taskName
-            }))
-          }
-        }
-      },
-      async removeTaskRecordItem (task, taskName) {
-        try {
-          await this.$store.dispatch('task/removeTaskRecord', task)
-          this.$msg.success(this.$t('task.remove-record-success', {
-            taskName
-          }))
-        } catch ({ code }) {
-          if (code === 1) {
-            this.$msg.error(this.$t('task.remove-record-fail', {
-              taskName
-            }))
-          }
-        }
-      },
-      removeTasks (taskList, isRemoveWithFiles = false) {
-        const gids = taskList.map((task) => task.gid)
-        this.$store.dispatch('task/batchForcePauseTask', gids)
-          .finally(() => {
-            if (isRemoveWithFiles) {
-              this.batchDeleteTaskFiles(taskList)
-            }
-
-            this.removeTaskItems(gids)
-          })
-      },
-      batchDeleteTaskFiles (taskList) {
-        const promises = taskList.map((task, index) => delayDeleteTaskFiles(task, index * 200))
-        Promise.allSettled(promises).then(results => {
-          console.log('[Motrix] batch delete task files: ', results)
-        })
-      },
-      removeTaskItems (gids) {
-        this.$store.dispatch('task/batchRemoveTask', gids)
-          .then(() => {
-            this.$msg.success(this.$t('task.batch-delete-task-success'))
-          })
-          .catch(({ code }) => {
-            if (code === 1) {
-              this.$msg.error(this.$t('task.batch-delete-task-fail'))
-            }
-          })
-      },
-      handlePauseTask (payload) {
-        const { task, taskName } = payload
-        this.$msg.info(this.$t('task.download-pause-message', { taskName }))
-        this.$store.dispatch('task/pauseTask', task)
-          .catch(({ code }) => {
-            if (code === 1) {
-              this.$msg.error(this.$t('task.pause-task-fail', { taskName }))
-            }
-          })
-      },
-      handleResumeTask (payload) {
-        const { task, taskName } = payload
-        this.$store.dispatch('task/resumeTask', task)
-          .catch(({ code }) => {
-            if (code === 1) {
-              this.$msg.error(this.$t('task.resume-task-fail', {
-                taskName
-              }))
-            }
-          })
-      },
-      handleStopTaskSeeding (payload) {
-        const { task } = payload
-        this.$store.dispatch('task/stopSeeding', task)
-        this.$msg.info({
-          message: this.$t('task.bt-stopping-seeding-tip'),
-          duration: 8000
-        })
-      },
-      handleRestartTask (payload) {
-        const { task, taskName, showDialog } = payload
-        const { gid } = task
-        const uri = getTaskUri(task)
-
-        this.$store.dispatch('task/getTaskOption', gid)
-          .then((data) => {
-            console.log('[Motrix] get task option:', data)
-            const { dir, header, split } = data
-            const options = {
-              dir,
-              header,
-              split,
-              out: taskName
-            }
-
-            if (showDialog) {
-              this.showAddTaskDialog(uri, options)
-            } else {
-              this.directAddTask(uri, options)
-              this.$store.dispatch('task/removeTaskRecord', task)
-            }
-          })
-      },
-      handleRevealInFolder (payload) {
-        const { path } = payload
-        showItemInFolder(path, {
-          errorMsg: this.$t('task.file-not-exist')
-        })
-      },
-      handleDeleteTask (payload) {
-        const { task, taskName, deleteWithFiles } = payload
-        const { noConfirmBeforeDelete } = this
-
-        if (noConfirmBeforeDelete) {
-          this.removeTask(task, taskName, deleteWithFiles)
-          return
-        }
-
-        dialog.showMessageBox({
-          type: 'warning',
-          title: this.$t('task.delete-task'),
-          message: this.$t('task.delete-task-confirm', { taskName }),
-          buttons: [this.$t('app.yes'), this.$t('app.no')],
-          cancelId: 1,
-          checkboxLabel: this.$t('task.delete-task-label'),
-          checkboxChecked: deleteWithFiles
-        }).then(({ response, checkboxChecked }) => {
-          if (response === 0) {
-            this.removeTask(task, taskName, checkboxChecked)
-          }
-        })
-      },
-      handleDeleteTaskRecord (payload) {
-        const { task, taskName, deleteWithFiles } = payload
-        const { noConfirmBeforeDelete } = this
-
-        if (noConfirmBeforeDelete) {
-          this.removeTaskRecord(task, taskName, deleteWithFiles)
-          return
-        }
-
-        dialog.showMessageBox({
-          type: 'warning',
-          title: this.$t('task.remove-record'),
-          message: this.$t('task.remove-record-confirm', { taskName }),
-          buttons: [this.$t('app.yes'), this.$t('app.no')],
-          cancelId: 1,
-          checkboxLabel: this.$t('task.remove-record-label'),
-          checkboxChecked: !!deleteWithFiles
-        }).then(({ response, checkboxChecked }) => {
-          if (response === 0) {
-            this.removeTaskRecord(task, taskName, checkboxChecked)
-          }
-        })
-      },
-      handleBatchDeleteTask (payload) {
-        const { deleteWithFiles } = payload
-        const {
-          noConfirmBeforeDelete,
-          selectedGidList,
-          selectedGidListCount,
-          taskList
-        } = this
-        if (selectedGidListCount === 0) {
-          return
-        }
-
-        const selectedTaskList = taskList.filter((task) => {
-          return selectedGidList.includes(task.gid)
-        })
-
-        if (noConfirmBeforeDelete) {
-          this.removeTasks(selectedTaskList, deleteWithFiles)
-          return
-        }
-
-        const count = `${selectedGidListCount}`
-        dialog.showMessageBox({
-          type: 'warning',
-          title: this.$t('task.delete-selected-task'),
-          message: this.$t('task.batch-delete-task-confirm', { count }),
-          buttons: [this.$t('app.yes'), this.$t('app.no')],
-          cancelId: 1,
-          checkboxLabel: this.$t('task.delete-task-label'),
-          checkboxChecked: deleteWithFiles
-        }).then(({ response, checkboxChecked }) => {
-          if (response === 0) {
-            this.removeTasks(selectedTaskList, checkboxChecked)
-          }
-        })
-      },
-      handleCopyTaskLink (payload) {
-        const { task } = payload
-        const uri = getTaskUri(task)
-        navigator.clipboard.writeText(uri)
-          .then(() => {
-            this.$msg.success(this.$t('task.copy-link-success'))
-          })
-      },
-      handleShowTaskInfo (payload) {
-        const { task } = payload
-        this.$store.dispatch('task/showTaskDetail', task)
-      }
-    },
-    created () {
-      this.changeCurrentList()
-    },
-    mounted () {
-      commands.on('pause-task', this.handlePauseTask)
-      commands.on('resume-task', this.handleResumeTask)
-      commands.on('stop-task-seeding', this.handleStopTaskSeeding)
-      commands.on('restart-task', this.handleRestartTask)
-      commands.on('reveal-in-folder', this.handleRevealInFolder)
-      commands.on('delete-task', this.handleDeleteTask)
-      commands.on('delete-task-record', this.handleDeleteTaskRecord)
-      commands.on('batch-delete-task', this.handleBatchDeleteTask)
-      commands.on('copy-task-link', this.handleCopyTaskLink)
-      commands.on('show-task-info', this.handleShowTaskInfo)
-    },
-    destroyed () {
-      commands.off('pause-task', this.handlePauseTask)
-      commands.off('resume-task', this.handleResumeTask)
-      commands.off('stop-task-seeding', this.handleStopTaskSeeding)
-      commands.off('restart-task', this.handleRestartTask)
-      commands.off('reveal-in-folder', this.handleRevealInFolder)
-      commands.off('delete-task', this.handleDeleteTask)
-      commands.off('delete-task-record', this.handleDeleteTaskRecord)
-      commands.off('batch-delete-task', this.handleBatchDeleteTask)
-      commands.off('copy-task-link', this.handleCopyTaskLink)
-      commands.off('show-task-info', this.handleShowTaskInfo)
+    } catch (err: any) {
+      $msg.error(t(err.message))
     }
   }
+
+  function removeTask (task: any, taskName: string, isRemoveWithFiles = false) {
+    taskStore.forcePauseTask(task)
+      .finally(() => {
+        if (isRemoveWithFiles) {
+          deleteTaskFiles(task)
+        }
+
+        return removeTaskItem(task, taskName)
+      })
+  }
+
+  function removeTaskRecord (task: any, taskName: string, isRemoveWithFiles = false) {
+    taskStore.forcePauseTask(task)
+      .finally(() => {
+        if (isRemoveWithFiles) {
+          deleteTaskFiles(task)
+        }
+
+        return removeTaskRecordItem(task, taskName)
+      })
+  }
+
+  async function removeTaskItem (task: any, taskName: string) {
+    try {
+      await taskStore.removeTask(task)
+      $msg.success(t('task.delete-task-success', {
+        taskName
+      }))
+    } catch ({ code }: any) {
+      if (code === 1) {
+        $msg.error(t('task.delete-task-fail', {
+          taskName
+        }))
+      }
+    }
+  }
+
+  async function removeTaskRecordItem (task: any, taskName: string) {
+    try {
+      await taskStore.removeTaskRecord(task)
+      $msg.success(t('task.remove-record-success', {
+        taskName
+      }))
+    } catch ({ code }: any) {
+      if (code === 1) {
+        $msg.error(t('task.remove-record-fail', {
+          taskName
+        }))
+      }
+    }
+  }
+
+  function removeTasks (tasks: any[], isRemoveWithFiles = false) {
+    const gids = tasks.map((task) => task.gid)
+    taskStore.batchForcePauseTask(gids)
+      .finally(() => {
+        if (isRemoveWithFiles) {
+          batchDeleteTaskFiles(tasks)
+        }
+
+        removeTaskItems(gids)
+      })
+  }
+
+  function batchDeleteTaskFiles (tasks: any[]) {
+    const promises = tasks.map((task, index) => delayDeleteTaskFiles(task, index * 200))
+    Promise.allSettled(promises).then(results => {
+      console.log('[Motrix] batch delete task files: ', results)
+    })
+  }
+
+  function removeTaskItems (gids: string[]) {
+    taskStore.batchRemoveTask(gids)
+      .then(() => {
+        $msg.success(t('task.batch-delete-task-success'))
+      })
+      .catch(({ code }: any) => {
+        if (code === 1) {
+          $msg.error(t('task.batch-delete-task-fail'))
+        }
+      })
+  }
+
+  function handlePauseTask (payload: any) {
+    const { task, taskName } = payload
+    $msg.info(t('task.download-pause-message', { taskName }))
+    taskStore.pauseTask(task)
+      .catch(({ code }: any) => {
+        if (code === 1) {
+          $msg.error(t('task.pause-task-fail', { taskName }))
+        }
+      })
+  }
+
+  function handleResumeTask (payload: any) {
+    const { task, taskName } = payload
+    taskStore.resumeTask(task)
+      .catch(({ code }: any) => {
+        if (code === 1) {
+          $msg.error(t('task.resume-task-fail', {
+            taskName
+          }))
+        }
+      })
+  }
+
+  function handleStopTaskSeeding (payload: any) {
+    const { task } = payload
+    taskStore.stopSeeding(task)
+    $msg.info({
+      message: t('task.bt-stopping-seeding-tip'),
+      duration: 8000
+    })
+  }
+
+  function handleRestartTask (payload: any) {
+    const { task, taskName, showDialog } = payload
+    const { gid } = task
+    const uri = getTaskUri(task)
+
+    taskStore.getTaskOption(gid)
+      .then((data: any) => {
+        console.log('[Motrix] get task option:', data)
+        const { dir, header, split } = data
+        const options = {
+          dir,
+          header,
+          split,
+          out: taskName
+        }
+
+        if (showDialog) {
+          showAddTaskDialog(uri, options)
+        } else {
+          directAddTask(uri, options)
+          taskStore.removeTaskRecord(task)
+        }
+      })
+  }
+
+  function handleRevealInFolder (payload: any) {
+    const { path } = payload
+    showItemInFolder(path, {
+      errorMsg: t('task.file-not-exist')
+    })
+  }
+
+  function handleDeleteTask (payload: any) {
+    const { task, taskName, deleteWithFiles } = payload
+
+    if (noConfirmBeforeDelete.value) {
+      removeTask(task, taskName, deleteWithFiles)
+      return
+    }
+
+    window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: t('task.delete-task'),
+      message: t('task.delete-task-confirm', { taskName }),
+      buttons: [t('app.yes'), t('app.no')],
+      cancelId: 1,
+      checkboxLabel: t('task.delete-task-label'),
+      checkboxChecked: deleteWithFiles
+    }).then(({ response, checkboxChecked }: any) => {
+      if (response === 0) {
+        removeTask(task, taskName, checkboxChecked)
+      }
+    })
+  }
+
+  function handleDeleteTaskRecord (payload: any) {
+    const { task, taskName, deleteWithFiles } = payload
+
+    if (noConfirmBeforeDelete.value) {
+      removeTaskRecord(task, taskName, deleteWithFiles)
+      return
+    }
+
+    window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: t('task.remove-record'),
+      message: t('task.remove-record-confirm', { taskName }),
+      buttons: [t('app.yes'), t('app.no')],
+      cancelId: 1,
+      checkboxLabel: t('task.remove-record-label'),
+      checkboxChecked: !!deleteWithFiles
+    }).then(({ response, checkboxChecked }: any) => {
+      if (response === 0) {
+        removeTaskRecord(task, taskName, checkboxChecked)
+      }
+    })
+  }
+
+  function handleBatchDeleteTask (payload: any) {
+    const { deleteWithFiles } = payload
+    if (selectedGidListCount.value === 0) {
+      return
+    }
+
+    const selectedTaskList = taskList.value.filter((task: any) => {
+      return selectedGidList.value.includes(task.gid)
+    })
+
+    if (noConfirmBeforeDelete.value) {
+      removeTasks(selectedTaskList, deleteWithFiles)
+      return
+    }
+
+    const count = `${selectedGidListCount.value}`
+    window.electronAPI.showMessageBox({
+      type: 'warning',
+      title: t('task.delete-selected-task'),
+      message: t('task.batch-delete-task-confirm', { count }),
+      buttons: [t('app.yes'), t('app.no')],
+      cancelId: 1,
+      checkboxLabel: t('task.delete-task-label'),
+      checkboxChecked: deleteWithFiles
+    }).then(({ response, checkboxChecked }: any) => {
+      if (response === 0) {
+        removeTasks(selectedTaskList, checkboxChecked)
+      }
+    })
+  }
+
+  function handleCopyTaskLink (payload: any) {
+    const { task } = payload
+    const uri = getTaskUri(task)
+    navigator.clipboard.writeText(uri)
+      .then(() => {
+        $msg.success(t('task.copy-link-success'))
+      })
+  }
+
+  function handleShowTaskInfo (payload: any) {
+    const { task } = payload
+    taskStore.showTaskDetail(task)
+  }
+
+  // created equivalent — runs immediately in setup scope
+  changeCurrentList()
+
+  onMounted(() => {
+    commands.on('pause-task', handlePauseTask)
+    commands.on('resume-task', handleResumeTask)
+    commands.on('stop-task-seeding', handleStopTaskSeeding)
+    commands.on('restart-task', handleRestartTask)
+    commands.on('reveal-in-folder', handleRevealInFolder)
+    commands.on('delete-task', handleDeleteTask)
+    commands.on('delete-task-record', handleDeleteTaskRecord)
+    commands.on('batch-delete-task', handleBatchDeleteTask)
+    commands.on('copy-task-link', handleCopyTaskLink)
+    commands.on('show-task-info', handleShowTaskInfo)
+  })
+
+  onUnmounted(() => {
+    commands.off('pause-task', handlePauseTask)
+    commands.off('resume-task', handleResumeTask)
+    commands.off('stop-task-seeding', handleStopTaskSeeding)
+    commands.off('restart-task', handleRestartTask)
+    commands.off('reveal-in-folder', handleRevealInFolder)
+    commands.off('delete-task', handleDeleteTask)
+    commands.off('delete-task-record', handleDeleteTaskRecord)
+    commands.off('batch-delete-task', handleBatchDeleteTask)
+    commands.off('copy-task-link', handleCopyTaskLink)
+    commands.off('show-task-info', handleShowTaskInfo)
+  })
 </script>

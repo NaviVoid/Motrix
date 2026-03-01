@@ -1,12 +1,12 @@
 <template>
   <div class="app-info">
     <div class="app-version">
-      <mo-logo :width="93" :height="21" style="vertical-align: bottom;" />
+      <Logo :width="93" :height="21" style="vertical-align: bottom;" />
       <span>Version {{version}}</span>
     </div>
     <div class="app-icon"></div>
     <div class="engine-info" v-if="!!engine">
-      <h4>{{ $t('about.engine-version') }} {{engine.version}}</h4>
+      <h4>{{ t('about.engine-version') }} {{engine.version}}</h4>
       <ul v-if="!isMas()">
         <li
           v-for="(feature, index) in engine.enabledFeatures"
@@ -18,33 +18,33 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
   import is from 'electron-is'
-  import Logo from '@/components/Logo/Logo'
+  import { useI18n } from 'vue-i18n'
+  import Logo from '@/components/Logo/Logo.vue'
 
-  export default {
-    name: 'mo-app-info',
-    components: {
-      [Logo.name]: Logo
-    },
-    props: {
-      version: {
-        type: String,
-        default: ''
-      },
-      engine: {
-        type: Object,
-        default () {
-          return {
-            version: '',
-            enabledFeatures: []
-          }
-        }
-      }
-    },
-    methods: {
-      isMas: is.mas
-    }
+  defineOptions({ name: 'mo-app-info' })
+
+  const { t } = useI18n()
+
+  interface EngineInfo {
+    version: string
+    enabledFeatures: string[]
+  }
+
+  withDefaults(defineProps<{
+    version?: string
+    engine?: EngineInfo
+  }>(), {
+    version: '',
+    engine: () => ({
+      version: '',
+      enabledFeatures: []
+    })
+  })
+
+  function isMas (): boolean {
+    return is.mas()
   }
 </script>
 
@@ -64,7 +64,7 @@
     position: absolute;
     top: 0;
     right: 0;
-    background: transparent url('~@/assets/app-icon.png') center center no-repeat;
+    background: transparent url('@/assets/app-icon.png') center center no-repeat;
     background-size: 128px 128px;
     width: 128px;
     height: 128px;

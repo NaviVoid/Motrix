@@ -7,28 +7,25 @@
   </el-button>
 </template>
 
-<script>
-  import { dialog } from '@electron/remote'
+<script setup lang="ts">
   import '@/components/Icons/folder'
 
-  export default {
-    name: 'mo-select-directory',
-    props: {
-    },
-    methods: {
-      onFolderClick () {
-        const self = this
-        dialog.showOpenDialog({
-          properties: ['openDirectory', 'createDirectory']
-        }).then(({ canceled, filePaths }) => {
-          if (canceled || filePaths.length === 0) {
-            return
-          }
+  defineOptions({ name: 'mo-select-directory' })
 
-          const [path] = filePaths
-          self.$emit('selected', path)
-        })
+  const emit = defineEmits<{
+    selected: [path: string]
+  }>()
+
+  function onFolderClick () {
+    window.electronAPI.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory']
+    }).then(({ canceled, filePaths }: { canceled: boolean; filePaths: string[] }) => {
+      if (canceled || filePaths.length === 0) {
+        return
       }
-    }
+
+      const [path] = filePaths
+      emit('selected', path)
+    })
   }
 </script>

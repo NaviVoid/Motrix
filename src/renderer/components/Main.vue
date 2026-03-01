@@ -3,10 +3,10 @@
     <mo-aside />
     <router-view />
     <mo-speedometer />
-    <mo-add-task :visible="addTaskVisible" :type="addTaskType" />
-    <mo-about-panel :visible="aboutPanelVisible" />
+    <mo-add-task :model-value="addTaskVisible" :type="addTaskType" />
+    <mo-about-panel :model-value="aboutPanelVisible" />
     <mo-task-detail
-      :visible="taskDetailVisible"
+      :model-value="taskDetailVisible"
       :gid="currentTaskGid"
       :task="currentTaskItem"
       :files="currentTaskFiles"
@@ -16,42 +16,32 @@
   </el-container>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
-  import AboutPanel from '@/components/About/AboutPanel'
-  import Aside from '@/components/Aside/Index'
-  import Speedometer from '@/components/Speedometer/Speedometer'
-  import AddTask from '@/components/Task/AddTask'
-  import TaskDetail from '@/components/TaskDetail/Index'
-  import Dragger from '@/components/Dragger/Index'
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { storeToRefs } from 'pinia'
+  import { useAppStore } from '@/store/app'
+  import { useTaskStore } from '@/store/task'
+  import MoAboutPanel from '@/components/About/AboutPanel.vue'
+  import MoAside from '@/components/Aside/Index.vue'
+  import MoSpeedometer from '@/components/Speedometer/Speedometer.vue'
+  import MoAddTask from '@/components/Task/AddTask.vue'
+  import MoTaskDetail from '@/components/TaskDetail/Index.vue'
+  import MoDragger from '@/components/Dragger/Index.vue'
 
-  export default {
-    name: 'mo-main',
-    components: {
-      [AboutPanel.name]: AboutPanel,
-      [Aside.name]: Aside,
-      [Speedometer.name]: Speedometer,
-      [AddTask.name]: AddTask,
-      [TaskDetail.name]: TaskDetail,
-      [Dragger.name]: Dragger
-    },
-    computed: {
-      ...mapState('app', {
-        aboutPanelVisible: state => state.aboutPanelVisible,
-        addTaskVisible: state => state.addTaskVisible,
-        addTaskType: state => state.addTaskType
-      }),
-      ...mapState('task', {
-        taskDetailVisible: state => state.taskDetailVisible,
-        currentTaskGid: state => state.currentTaskGid,
-        currentTaskItem: state => state.currentTaskItem,
-        currentTaskFiles: state => state.currentTaskFiles,
-        currentTaskPeers: state => state.currentTaskPeers
-      })
-    },
-    methods: {
-    }
-  }
+  defineOptions({ name: 'mo-main' })
+
+  const appStore = useAppStore()
+  const taskStore = useTaskStore()
+
+  const aboutPanelVisible = computed(() => appStore.aboutPanelVisible)
+  const addTaskVisible = computed(() => appStore.addTaskVisible)
+  const addTaskType = computed(() => appStore.addTaskType)
+
+  const taskDetailVisible = computed(() => taskStore.taskDetailVisible)
+  const currentTaskGid = computed(() => taskStore.currentTaskGid)
+  const currentTaskItem = computed(() => taskStore.currentTaskItem)
+  const currentTaskFiles = computed(() => taskStore.currentTaskFiles)
+  const currentTaskPeers = computed(() => taskStore.currentTaskPeers)
 </script>
 
 <style lang="scss">

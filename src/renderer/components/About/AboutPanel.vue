@@ -2,54 +2,48 @@
   <el-dialog
     custom-class="app-about-dialog"
     width="61.8vw"
-    :visible="visible"
+    :model-value="visible"
     @open="handleOpen"
     :before-close="handleClose"
     @closed="handleClosed">
     <mo-app-info :version="version" :engine="engineInfo" />
-    <mo-copyright slot="footer" />
+    <template #footer><mo-copyright /></template>
   </el-dialog>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
-  import AppInfo from '@/components/About/AppInfo'
-  import Copyright from '@/components/About/Copyright'
-  import { app } from '@electron/remote'
+<script setup lang="ts">
+  import { ref, computed, onBeforeMount } from 'vue'
+  import { useAppStore } from '@/store/app'
+  import MoAppInfo from '@/components/About/AppInfo.vue'
+  import MoCopyright from '@/components/About/Copyright.vue'
 
-  export default {
-    name: 'mo-about-panel',
-    components: {
-      [AppInfo.name]: AppInfo,
-      [Copyright.name]: Copyright
-    },
-    props: {
-      visible: {
-        type: Boolean,
-        default: false
-      }
-    },
-    data () {
-      const version = app.getVersion()
-      return {
-        version
-      }
-    },
-    computed: {
-      ...mapState('app', {
-        engineInfo: state => state.engineInfo
-      })
-    },
-    methods: {
-      handleOpen () {
-        this.$store.dispatch('app/fetchEngineInfo')
-      },
-      handleClose (done) {
-        this.$store.dispatch('app/hideAboutPanel')
-      },
-      handleClosed () {
-      }
-    }
+  defineOptions({ name: 'mo-about-panel' })
+
+  const props = withDefaults(defineProps<{
+    visible?: boolean
+  }>(), {
+    visible: false
+  })
+
+  const appStore = useAppStore()
+
+  const version = ref('')
+
+  const engineInfo = computed(() => appStore.engineInfo)
+
+  onBeforeMount(async () => {
+    version.value = await window.electronAPI.getAppVersion()
+  })
+
+  function handleOpen () {
+    appStore.fetchEngineInfo()
+  }
+
+  function handleClose (done: () => void) {
+    appStore.hideAboutPanel()
+  }
+
+  function handleClosed () {
   }
 </script>
 

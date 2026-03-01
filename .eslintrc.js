@@ -9,8 +9,11 @@ module.exports = {
     '@vue/standard'
   ],
   parserOptions: {
-    parser: 'babel-eslint'
+    parser: '@typescript-eslint/parser',
+    ecmaVersion: 2022,
+    sourceType: 'module'
   },
+  plugins: ['@typescript-eslint'],
   globals: {
     appId: true,
     __static: true
@@ -21,13 +24,21 @@ module.exports = {
     indent: ['error', 2],
     'vue/script-indent': ['error', 2, {
       baseIndent: 1
-    }]
+    }],
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }]
   },
   overrides: [
     {
       files: ['*.vue'],
       rules: {
         indent: 'off'
+      }
+    },
+    {
+      files: ['*.ts'],
+      rules: {
+        'no-undef': 'off'
       }
     }
   ]

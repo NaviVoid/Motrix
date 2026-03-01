@@ -20,8 +20,10 @@
   </el-form>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed } from 'vue'
   import is from 'electron-is'
+  import { usePreferenceStore } from '@/store/preference'
   import {
     calcFormLabelWidth,
     checkTaskIsBT,
@@ -30,42 +32,33 @@
   import { convertTrackerDataToLine } from '@shared/utils/tracker'
   import { EMPTY_STRING } from '@shared/constants'
 
-  export default {
-    name: 'mo-task-trackers',
-    props: {
-      task: {
-        type: Object
-      }
-    },
-    data () {
-      const { locale } = this.$store.state.preference.config
-      return {
-        form: {},
-        formLabelWidth: calcFormLabelWidth(locale),
-        locale
-      }
-    },
-    computed: {
-      isRenderer: () => is.renderer(),
-      isBT () {
-        return checkTaskIsBT(this.task)
-      },
-      isSeeder () {
-        return checkTaskIsSeeder(this.task)
-      },
-      announceList () {
-        if (!this.isBT) {
-          return EMPTY_STRING
-        }
+  defineOptions({ name: 'mo-task-trackers' })
 
-        const { bittorrent } = this.task
-        const data = bittorrent.announceList.map((i) => i[0])
-        return convertTrackerDataToLine(data)
-      }
-    },
-    methods: {
+  const props = defineProps<{
+    task?: Record<string, any>
+  }>()
+
+  const preferenceStore = usePreferenceStore()
+  const { locale } = preferenceStore.config
+
+  const form = ref<Record<string, any>>({})
+  const formLabelWidth = calcFormLabelWidth(locale)
+
+  const isRenderer = is.renderer()
+
+  const isBT = computed(() => checkTaskIsBT(props.task))
+
+  const isSeeder = computed(() => checkTaskIsSeeder(props.task))
+
+  const announceList = computed(() => {
+    if (!isBT.value) {
+      return EMPTY_STRING
     }
-  }
+
+    const { bittorrent } = props.task!
+    const data = bittorrent.announceList.map((i: any[]) => i[0])
+    return convertTrackerDataToLine(data)
+  })
 </script>
 
 <style lang="scss">

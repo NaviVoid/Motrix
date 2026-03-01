@@ -47,94 +47,93 @@
           </span>
         </li>
       </ul>
-      <el-button
-        slot="reference"
-        :disabled="popoverDisabled"
-      >
-        <i class="el-icon-time" />
-      </el-button>
+      <template #reference>
+        <el-button
+          :disabled="popoverDisabled"
+        >
+          <i class="el-icon-time" />
+        </el-button>
+      </template>
     </el-popover>
   </div>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { ref, computed } from 'vue'
+  import { usePreferenceStore } from '@/store/preference'
   import { MAX_NUM_OF_DIRECTORIES } from '@shared/constants'
   import { cloneArray } from '@shared/utils'
 
-  export default {
-    name: 'mo-history-directory',
-    components: {
-    },
-    props: {
-      width: {
-        type: Number,
-        default: 360
-      },
-      placement: {
-        type: String,
-        default: 'bottom-start'
-      }
-    },
-    data () {
-      return {
-        visible: false
-      }
-    },
-    computed: {
-      ...mapState('preference', {
-        historyDirectories: state => {
-          return cloneArray(state.config.historyDirectories, true)
-        },
-        favoriteDirectories: state => {
-          return cloneArray(state.config.favoriteDirectories, true)
-        }
-      }),
-      empty () {
-        const { favoriteDirectories, historyDirectories } = this
-        return favoriteDirectories.length + historyDirectories.length === 0
-      },
-      popoverDisabled () {
-        const { favoriteDirectories, historyDirectories } = this
-        return favoriteDirectories.length === 0 &&
-          historyDirectories.length === 0
-      },
-      showDivider () {
-        const { favoriteDirectories, historyDirectories } = this
-        return favoriteDirectories.length > 0 &&
-          historyDirectories.length > 0
-      },
-      showFavoriteAction () {
-        const { favoriteDirectories } = this
-        return favoriteDirectories.length < MAX_NUM_OF_DIRECTORIES
-      }
-    },
-    methods: {
-      handleIconClick () {
-        if (this.popoverDisabled) {
-          return
-        }
+  defineOptions({ name: 'mo-history-directory' })
 
-        const { visible } = this
-        this.visible = !visible
-      },
-      handleSelectItem (directory) {
-        this.$emit('selected', directory.trim())
-        this.visible = false
-      },
-      handleFavoriteItem (directory) {
-        console.log('handleFavoriteItem==>', directory)
-        this.$store.dispatch('preference/favoriteDirectory', directory)
-      },
-      handleCancelFavoriteItem (directory) {
-        console.log('handleCancelFavoriteItem==>', directory)
-        this.$store.dispatch('preference/cancelFavoriteDirectory', directory)
-      },
-      handleRemoveItem (directory) {
-        console.log('handleRemoveItem==>', directory)
-        this.$store.dispatch('preference/removeDirectory', directory)
-      }
+  withDefaults(defineProps<{
+    width?: number
+    placement?: string
+  }>(), {
+    width: 360,
+    placement: 'bottom-start'
+  })
+
+  const emit = defineEmits<{
+    (e: 'selected', directory: string): void
+  }>()
+
+  const preferenceStore = usePreferenceStore()
+
+  const visible = ref(false)
+
+  const historyDirectories = computed(() => {
+    return cloneArray(preferenceStore.config.historyDirectories, true)
+  })
+
+  const favoriteDirectories = computed(() => {
+    return cloneArray(preferenceStore.config.favoriteDirectories, true)
+  })
+
+  const empty = computed(() => {
+    return favoriteDirectories.value.length + historyDirectories.value.length === 0
+  })
+
+  const popoverDisabled = computed(() => {
+    return favoriteDirectories.value.length === 0 &&
+      historyDirectories.value.length === 0
+  })
+
+  const showDivider = computed(() => {
+    return favoriteDirectories.value.length > 0 &&
+      historyDirectories.value.length > 0
+  })
+
+  const showFavoriteAction = computed(() => {
+    return favoriteDirectories.value.length < MAX_NUM_OF_DIRECTORIES
+  })
+
+  function handleIconClick () {
+    if (popoverDisabled.value) {
+      return
     }
+
+    visible.value = !visible.value
+  }
+
+  function handleSelectItem (directory: string) {
+    emit('selected', directory.trim())
+    visible.value = false
+  }
+
+  function handleFavoriteItem (directory: string) {
+    console.log('handleFavoriteItem==>', directory)
+    preferenceStore.favoriteDirectory(directory)
+  }
+
+  function handleCancelFavoriteItem (directory: string) {
+    console.log('handleCancelFavoriteItem==>', directory)
+    preferenceStore.cancelFavoriteDirectory(directory)
+  }
+
+  function handleRemoveItem (directory: string) {
+    console.log('handleRemoveItem==>', directory)
+    preferenceStore.removeDirectory(directory)
   }
 </script>
 

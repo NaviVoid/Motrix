@@ -8,8 +8,8 @@
       :lg="6"
     >
       <div v-if="task.completedLength > 0 || task.totalLength > 0">
-        <span>{{ task.completedLength | bytesToSize(2) }}</span>
-        <span v-if="task.totalLength > 0"> / {{ task.totalLength | bytesToSize(2) }}</span>
+        <span>{{ bytesToSize(task.completedLength, 2) }}</span>
+        <span v-if="task.totalLength > 0"> / {{ bytesToSize(task.totalLength, 2) }}</span>
       </div>
     </el-col>
     <el-col
@@ -23,22 +23,22 @@
       <div class="task-speed-info">
         <div class="task-speed-text" v-if="isBT">
           <i><mo-icon name="arrow-up" width="10" height="14" /></i>
-          <span>{{ task.uploadSpeed | bytesToSize }}/s</span>
+          <span>{{ bytesToSize(task.uploadSpeed) }}/s</span>
         </div>
         <div class="task-speed-text">
           <i><mo-icon name="arrow-down" width="10" height="14" /></i>
-          <span>{{ task.downloadSpeed | bytesToSize }}/s</span>
+          <span>{{ bytesToSize(task.downloadSpeed) }}/s</span>
         </div>
         <div class="task-speed-text hidden-sm-and-down" v-if="remaining > 0">
           <span>
             {{
-              remaining | timeFormat({
-                prefix: $t('task.remaining-prefix'),
+              timeFormat(remaining, {
+                prefix: t('task.remaining-prefix'),
                 i18n: {
-                  'gt1d': $t('app.gt1d'),
-                  'hour': $t('app.hour'),
-                  'minute': $t('app.minute'),
-                  'second': $t('app.second')
+                  'gt1d': t('app.gt1d'),
+                  'hour': t('app.hour'),
+                  'minute': t('app.minute'),
+                  'second': t('app.second')
                 }
               })
             }}
@@ -57,7 +57,9 @@
   </el-row>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { useI18n } from 'vue-i18n'
   import {
     bytesToSize,
     checkTaskIsBT,
@@ -71,33 +73,24 @@
   import '@/components/Icons/node'
   import '@/components/Icons/magnet'
 
-  export default {
-    name: 'mo-task-progress-info',
-    props: {
-      task: {
-        type: Object
-      }
-    },
-    computed: {
-      isActive () {
-        return this.task.status === TASK_STATUS.ACTIVE
-      },
-      isBT () {
-        return checkTaskIsBT(this.task)
-      },
-      isSeeder () {
-        return checkTaskIsSeeder(this.task)
-      },
-      remaining () {
-        const { totalLength, completedLength, downloadSpeed } = this.task
-        return timeRemaining(totalLength, completedLength, downloadSpeed)
-      }
-    },
-    filters: {
-      bytesToSize,
-      timeFormat
-    }
-  }
+  defineOptions({ name: 'mo-task-progress-info' })
+
+  const { t } = useI18n()
+
+  const props = defineProps<{
+    task: Record<string, any>
+  }>()
+
+  const isActive = computed(() => props.task.status === TASK_STATUS.ACTIVE)
+
+  const isBT = computed(() => checkTaskIsBT(props.task))
+
+  const isSeeder = computed(() => checkTaskIsSeeder(props.task))
+
+  const remaining = computed(() => {
+    const { totalLength, completedLength, downloadSpeed } = props.task
+    return timeRemaining(totalLength, completedLength, downloadSpeed)
+  })
 </script>
 
 <style lang="scss">

@@ -14,53 +14,51 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed, watch } from 'vue'
+  import { useI18n } from 'vue-i18n'
   import { APP_THEME } from '@shared/constants'
 
-  export default {
-    name: 'mo-theme-switcher',
-    props: {
-      value: {
-        type: String,
-        default: APP_THEME.AUTO
-      }
+  defineOptions({ name: 'mo-theme-switcher' })
+
+  const props = withDefaults(defineProps<{
+    value?: string
+  }>(), {
+    value: APP_THEME.AUTO
+  })
+
+  const emit = defineEmits<{
+    change: [value: string]
+  }>()
+
+  const { t } = useI18n()
+
+  const currentValue = ref(props.value)
+
+  const themeOptions = computed(() => [
+    {
+      className: 'theme-item-auto',
+      value: APP_THEME.AUTO,
+      text: t('preferences.theme-auto')
     },
-    data () {
-      return {
-        currentValue: this.value
-      }
+    {
+      className: 'theme-item-light',
+      value: APP_THEME.LIGHT,
+      text: t('preferences.theme-light')
     },
-    computed: {
-      themeOptions () {
-        return [
-          {
-            className: 'theme-item-auto',
-            value: APP_THEME.AUTO,
-            text: this.$t('preferences.theme-auto')
-          },
-          {
-            className: 'theme-item-light',
-            value: APP_THEME.LIGHT,
-            text: this.$t('preferences.theme-light')
-          },
-          {
-            className: 'theme-item-dark',
-            value: APP_THEME.DARK,
-            text: this.$t('preferences.theme-dark')
-          }
-        ]
-      }
-    },
-    watch: {
-      currentValue (val) {
-        this.$emit('change', val)
-      }
-    },
-    methods: {
-      handleChange (theme) {
-        this.currentValue = theme
-      }
+    {
+      className: 'theme-item-dark',
+      value: APP_THEME.DARK,
+      text: t('preferences.theme-dark')
     }
+  ])
+
+  watch(currentValue, (val) => {
+    emit('change', val)
+  })
+
+  function handleChange (theme: string) {
+    currentValue.value = theme
   }
 </script>
 
@@ -89,15 +87,15 @@
       }
     }
     &.theme-item-auto .theme-thumb {
-      background: url('~@/assets/theme-auto@2x.png') center center no-repeat;
+      background: url('@/assets/theme-auto@2x.png') center center no-repeat;
       background-size: 68px 44px;
     }
     &.theme-item-light .theme-thumb {
-      background: url('~@/assets/theme-light@2x.png') center center no-repeat;
+      background: url('@/assets/theme-light@2x.png') center center no-repeat;
       background-size: 68px 44px;
     }
     &.theme-item-dark .theme-thumb {
-      background: url('~@/assets/theme-dark@2x.png') center center no-repeat;
+      background: url('@/assets/theme-dark@2x.png') center center no-repeat;
       background-size: 68px 44px;
     }
   }

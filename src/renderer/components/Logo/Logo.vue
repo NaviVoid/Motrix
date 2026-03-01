@@ -12,20 +12,16 @@
   </div>
 </template>
 
-<script>
-  export default {
-    name: 'mo-logo',
-    props: {
-      width: {
-        type: Number,
-        default: 62
-      },
-      height: {
-        type: Number,
-        default: 14
-      }
-    }
-  }
+<script setup lang="ts">
+  defineOptions({ name: 'mo-logo' })
+
+  withDefaults(defineProps<{
+    width?: number
+    height?: number
+  }>(), {
+    width: 62,
+    height: 14
+  })
 </script>
 
 <style lang="scss">

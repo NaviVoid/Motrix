@@ -12,39 +12,27 @@
   </rect>
 </template>
 
-<script>
-  export default {
-    name: 'mo-task-graphic-atom',
-    props: {
-      status: {
-        type: Number
-      },
-      width: {
-        type: Number,
-        default: 10
-      },
-      height: {
-        type: Number,
-        default: 10
-      },
-      radius: {
-        type: Number,
-        default: 2
-      },
-      x: {
-        type: Number
-      },
-      y: {
-        type: Number
-      }
-    },
-    computed: {
-      klass () {
-        const { status } = this
-        return `graphic-atom graphic-atom-s${status}`
-      }
-    }
-  }
+<script setup lang="ts">
+  import { computed } from 'vue'
+
+  defineOptions({ name: 'mo-task-graphic-atom' })
+
+  const props = withDefaults(defineProps<{
+    status?: number
+    width?: number
+    height?: number
+    radius?: number
+    x?: number
+    y?: number
+  }>(), {
+    width: 10,
+    height: 10,
+    radius: 2
+  })
+
+  const klass = computed(() => {
+    return `graphic-atom graphic-atom-s${props.status}`
+  })
 </script>
 
 <style lang="scss">

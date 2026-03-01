@@ -15,39 +15,27 @@
   </div>
 </template>
 
-<script>
-  import { getCurrentWindow } from '@electron/remote'
+<script setup lang="ts">
   import '@/components/Icons/win-minimize'
   import '@/components/Icons/win-maximize'
   import '@/components/Icons/win-close'
 
-  export default {
-    name: 'mo-title-bar',
-    props: {
-      showActions: {
-        type: Boolean
-      }
-    },
-    computed: {
-      win () {
-        return getCurrentWindow()
-      }
-    },
-    methods: {
-      handleMinimize () {
-        this.win.minimize()
-      },
-      handleMaximize () {
-        if (this.win.isMaximized()) {
-          this.win.unmaximize()
-        } else {
-          this.win.maximize()
-        }
-      },
-      handleClose () {
-        this.win.close()
-      }
-    }
+  defineOptions({ name: 'mo-title-bar' })
+
+  defineProps<{
+    showActions?: boolean
+  }>()
+
+  function handleMinimize () {
+    window.electronAPI.windowMinimize()
+  }
+
+  function handleMaximize () {
+    window.electronAPI.windowMaximize()
+  }
+
+  function handleClose () {
+    window.electronAPI.windowClose()
   }
 </script>
 

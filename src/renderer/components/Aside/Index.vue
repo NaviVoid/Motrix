@@ -22,51 +22,45 @@
   </el-aside>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { useRouter } from 'vue-router'
   import is from 'electron-is'
-  import { mapState } from 'vuex'
+  import { storeToRefs } from 'pinia'
+  import { useAppStore } from '@/store/app'
   import { ADD_TASK_TYPE } from '@shared/constants'
-  import LogoMini from '@/components/Logo/LogoMini'
+  import MoLogoMini from '@/components/Logo/LogoMini.vue'
   import '@/components/Icons/menu-task'
   import '@/components/Icons/menu-add'
   import '@/components/Icons/menu-preference'
   import '@/components/Icons/menu-about'
 
-  export default {
-    name: 'mo-aside',
-    components: {
-      [LogoMini.name]: LogoMini
-    },
-    computed: {
-      ...mapState('app', {
-        currentPage: state => state.currentPage
-      }),
-      asideDraggable () {
-        return is.macOS()
-      },
-      vibrancy () {
-        return is.macOS()
-          ? {
-            backgroundColor: 'transparent'
-          }
-          : {}
-      }
-    },
-    methods: {
-      showAddTask (taskType = ADD_TASK_TYPE.URI) {
-        this.$store.dispatch('app/showAddTaskDialog', taskType)
-      },
-      showAboutPanel () {
-        this.$store.dispatch('app/showAboutPanel')
-      },
-      nav (page) {
-        this.$router.push({
-          path: page
-        }).catch(err => {
-          console.log(err)
-        })
-      }
-    }
+  defineOptions({ name: 'mo-aside' })
+
+  const router = useRouter()
+  const appStore = useAppStore()
+  const { currentPage } = storeToRefs(appStore)
+
+  const asideDraggable = computed(() => is.macOS())
+
+  const vibrancy = computed(() => {
+    return is.macOS()
+      ? { backgroundColor: 'transparent' }
+      : {}
+  })
+
+  function showAddTask (taskType = ADD_TASK_TYPE.URI) {
+    appStore.showAddTaskDialog(taskType)
+  }
+
+  function showAboutPanel () {
+    appStore.showAboutPanel()
+  }
+
+  function nav (page: string) {
+    router.push({ path: page }).catch((err: Error) => {
+      console.log(err)
+    })
   }
 </script>
 

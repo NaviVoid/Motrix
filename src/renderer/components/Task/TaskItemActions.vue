@@ -32,8 +32,10 @@
   </ul>
 </template>
 
-<script>
-  import { mapState } from 'vuex'
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { storeToRefs } from 'pinia'
+  import { usePreferenceStore } from '@/store/preference'
   import is from 'electron-is'
 
   import { commands } from '@/components/CommandManager/instance'
@@ -53,7 +55,14 @@
   import '@/components/Icons/info-circle'
   import '@/components/Icons/trash'
 
-  const taskActionsMap = {
+  defineOptions({ name: 'mo-task-item-actions' })
+
+  const props = defineProps<{
+    mode?: string
+    task: Record<string, any>
+  }>()
+
+  const taskActionsMap: Record<string, string[]> = {
     [TASK_STATUS.ACTIVE]: ['PAUSE', 'DELETE'],
     [TASK_STATUS.PAUSED]: ['RESUME', 'DELETE'],
     [TASK_STATUS.WAITING]: ['RESUME', 'DELETE'],
@@ -63,128 +72,106 @@
     [TASK_STATUS.SEEDING]: ['STOP', 'DELETE']
   }
 
-  export default {
-    name: 'mo-task-item-actions',
-    props: {
-      mode: {
-        type: String,
-        default: 'LIST',
-        validator: function (value) {
-          return ['LIST', 'DETAIL'].indexOf(value) !== -1
-        }
-      },
-      task: {
-        type: Object,
-        required: true
-      }
-    },
-    computed: {
-      ...mapState('preference', {
-        noConfirmBeforeDelete: state => state.config.noConfirmBeforeDeleteTask
-      }),
-      taskName () {
-        return getTaskName(this.task)
-      },
-      path () {
-        return getTaskFullPath(this.task)
-      },
-      isSeeder () {
-        return checkTaskIsSeeder(this.task)
-      },
-      taskStatus () {
-        const { task, isSeeder } = this
-        if (isSeeder) {
-          return TASK_STATUS.SEEDING
-        } else {
-          return task.status
-        }
-      },
-      taskCommonActions () {
-        const { mode } = this
-        const result = is.renderer() ? ['FOLDER'] : []
+  const preferenceStore = usePreferenceStore()
 
-        switch (mode) {
-        case 'LIST':
-          result.push('LINK', 'INFO')
-          break
-        case 'DETAIL':
-          result.push('LINK')
-          break
-        }
+  const noConfirmBeforeDelete = computed(() => preferenceStore.config.noConfirmBeforeDeleteTask)
 
-        return result
-      },
-      taskActions () {
-        const { taskStatus, taskCommonActions } = this
-        const actions = taskActionsMap[taskStatus] || []
-        const result = [...actions, ...taskCommonActions].reverse()
-        return result
-      }
-    },
-    methods: {
-      onResumeClick () {
-        const { task, taskName } = this
-        commands.emit('resume-task', {
-          task,
-          taskName
-        })
-      },
-      onRestartClick (event) {
-        const { task, taskName } = this
-        const { status } = task
-        const showDialog = status === TASK_STATUS.COMPLETE || !!event.altKey
-        commands.emit('restart-task', {
-          task,
-          taskName,
-          showDialog
-        })
-      },
-      onPauseClick () {
-        const { task, taskName } = this
-        commands.emit('pause-task', {
-          task,
-          taskName
-        })
-      },
-      onStopClick () {
-        if (!this.isSeeder) {
-          return
-        }
+  const taskName = computed(() => getTaskName(props.task))
 
-        const { task } = this
-        commands.emit('stop-task-seeding', { task })
-      },
-      onDeleteClick (event) {
-        const { task, taskName } = this
-        const deleteWithFiles = !!event.shiftKey
-        commands.emit('delete-task', {
-          task,
-          taskName,
-          deleteWithFiles
-        })
-      },
-      onTrashClick (event) {
-        const { task, taskName } = this
-        const deleteWithFiles = !!event.shiftKey
-        commands.emit('delete-task-record', {
-          task,
-          taskName,
-          deleteWithFiles
-        })
-      },
-      onFolderClick () {
-        const { path } = this
-        commands.emit('reveal-in-folder', { path })
-      },
-      onLinkClick () {
-        const { task } = this
-        commands.emit('copy-task-link', { task })
-      },
-      onInfoClick () {
-        const { task } = this
-        commands.emit('show-task-info', { task })
-      }
+  const path = computed(() => getTaskFullPath(props.task))
+
+  const isSeeder = computed(() => checkTaskIsSeeder(props.task))
+
+  const taskStatus = computed(() => {
+    if (isSeeder.value) {
+      return TASK_STATUS.SEEDING
+    } else {
+      return props.task.status
     }
+  })
+
+  const taskCommonActions = computed(() => {
+    const mode = props.mode ?? 'LIST'
+    const result = is.renderer() ? ['FOLDER'] : []
+
+    switch (mode) {
+    case 'LIST':
+      result.push('LINK', 'INFO')
+      break
+    case 'DETAIL':
+      result.push('LINK')
+      break
+    }
+
+    return result
+  })
+
+  const taskActions = computed(() => {
+    const actions = taskActionsMap[taskStatus.value] || []
+    const result = [...actions, ...taskCommonActions.value].reverse()
+    return result
+  })
+
+  function onResumeClick () {
+    commands.emit('resume-task', {
+      task: props.task,
+      taskName: taskName.value
+    })
+  }
+
+  function onRestartClick (event: MouseEvent) {
+    const { status } = props.task
+    const showDialog = status === TASK_STATUS.COMPLETE || !!event.altKey
+    commands.emit('restart-task', {
+      task: props.task,
+      taskName: taskName.value,
+      showDialog
+    })
+  }
+
+  function onPauseClick () {
+    commands.emit('pause-task', {
+      task: props.task,
+      taskName: taskName.value
+    })
+  }
+
+  function onStopClick () {
+    if (!isSeeder.value) {
+      return
+    }
+
+    commands.emit('stop-task-seeding', { task: props.task })
+  }
+
+  function onDeleteClick (event: MouseEvent) {
+    const deleteWithFiles = !!event.shiftKey
+    commands.emit('delete-task', {
+      task: props.task,
+      taskName: taskName.value,
+      deleteWithFiles
+    })
+  }
+
+  function onTrashClick (event: MouseEvent) {
+    const deleteWithFiles = !!event.shiftKey
+    commands.emit('delete-task-record', {
+      task: props.task,
+      taskName: taskName.value,
+      deleteWithFiles
+    })
+  }
+
+  function onFolderClick () {
+    commands.emit('reveal-in-folder', { path: path.value })
+  }
+
+  function onLinkClick () {
+    commands.emit('copy-task-link', { task: props.task })
+  }
+
+  function onInfoClick () {
+    commands.emit('show-task-info', { task: props.task })
   }
 </script>
 

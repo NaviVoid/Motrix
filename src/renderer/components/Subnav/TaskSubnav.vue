@@ -33,32 +33,32 @@
   </nav>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { useI18n } from 'vue-i18n'
   import '@/components/Icons/task-start'
   import '@/components/Icons/task-pause'
   import '@/components/Icons/task-stop'
 
-  export default {
-    name: 'mo-task-subnav',
-    props: {
-      current: {
-        type: String,
-        default: 'active'
-      }
-    },
-    computed: {
-      title () {
-        return this.$t('subnav.task-list')
-      }
-    },
-    methods: {
-      nav (status = 'active') {
-        this.$router.push({
-          path: `/task/${status}`
-        }).catch(err => {
-          console.log(err)
-        })
-      }
-    }
+  defineOptions({ name: 'mo-task-subnav' })
+
+  withDefaults(defineProps<{
+    current?: string
+  }>(), {
+    current: 'active'
+  })
+
+  const router = useRouter()
+  const { t } = useI18n()
+
+  const title = computed(() => t('subnav.task-list'))
+
+  function nav (status = 'active') {
+    router.push({
+      path: `/task/${status}`
+    }).catch((err: Error) => {
+      console.log(err)
+    })
   }
 </script>

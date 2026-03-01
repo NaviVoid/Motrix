@@ -33,32 +33,32 @@
   </nav>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { useI18n } from 'vue-i18n'
   import '@/components/Icons/preference-basic'
   import '@/components/Icons/preference-advanced'
   import '@/components/Icons/preference-lab'
 
-  export default {
-    name: 'mo-preference-subnav',
-    props: {
-      current: {
-        type: String,
-        default: 'basic'
-      }
-    },
-    computed: {
-      title () {
-        return this.$t('subnav.preferences')
-      }
-    },
-    methods: {
-      nav (category = 'basic') {
-        this.$router.push({
-          path: `/preference/${category}`
-        }).catch(err => {
-          console.log(err)
-        })
-      }
-    }
+  defineOptions({ name: 'mo-preference-subnav' })
+
+  withDefaults(defineProps<{
+    current?: string
+  }>(), {
+    current: 'basic'
+  })
+
+  const router = useRouter()
+  const { t } = useI18n()
+
+  const title = computed(() => t('subnav.preferences'))
+
+  function nav (category = 'basic') {
+    router.push({
+      path: `/preference/${category}`
+    }).catch((err: Error) => {
+      console.log(err)
+    })
   }
 </script>

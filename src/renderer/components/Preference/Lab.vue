@@ -16,72 +16,67 @@
   </el-container>
 </template>
 
-<script>
+<script setup lang="ts">
+  import { ref, computed } from 'vue'
+  import { useI18n } from 'vue-i18n'
   import is from 'electron-is'
-  import { mapState } from 'vuex'
+  import { useAppStore } from '@/store/app'
+  import { usePreferenceStore } from '@/store/preference'
 
   import { APP_THEME } from '@shared/constants'
-  import SubnavSwitcher from '@/components/Subnav/SubnavSwitcher'
-  import Browser from '@/components/Browser'
+  import MoSubnavSwitcher from '@/components/Subnav/SubnavSwitcher.vue'
+  import MoBrowser from '@/components/Browser/index.vue'
   import '@/components/Icons/info-square'
 
-  export default {
-    name: 'mo-preference-lab',
-    components: {
-      [SubnavSwitcher.name]: SubnavSwitcher,
-      [Browser.name]: Browser
-    },
-    data () {
-      const { locale } = this.$store.state.preference.config
-      return {
-        locale
-      }
-    },
-    computed: {
-      isRenderer: () => is.renderer(),
-      ...mapState('app', {
-        systemTheme: state => state.systemTheme
-      }),
-      ...mapState('preference', {
-        config: state => state.config,
-        theme: state => state.config.theme
-      }),
-      currentTheme () {
-        if (this.theme === APP_THEME.AUTO) {
-          return this.systemTheme
-        } else {
-          return this.theme
-        }
-      },
-      url () {
-        const { currentTheme, locale } = this
-        const result = `https://motrix.app/lab?lite=true&theme=${currentTheme}&lang=${locale}`
-        return result
-      },
-      title () {
-        return this.$t('preferences.lab')
-      },
-      subnavs () {
-        return [
-          {
-            key: 'basic',
-            title: this.$t('preferences.basic'),
-            route: '/preference/basic'
-          },
-          {
-            key: 'advanced',
-            title: this.$t('preferences.advanced'),
-            route: '/preference/advanced'
-          },
-          {
-            key: 'lab',
-            title: this.$t('preferences.lab'),
-            route: '/preference/lab'
-          }
-        ]
-      }
+  defineOptions({ name: 'mo-preference-lab' })
+
+  const { t } = useI18n()
+  const appStore = useAppStore()
+  const preferenceStore = usePreferenceStore()
+
+  const locale = ref(preferenceStore.config.locale)
+
+  const isRenderer = computed(() => is.renderer())
+  const systemTheme = computed(() => appStore.systemTheme)
+  const config = computed(() => preferenceStore.config)
+  const theme = computed(() => preferenceStore.config.theme)
+
+  const currentTheme = computed(() => {
+    if (theme.value === APP_THEME.AUTO) {
+      return systemTheme.value
+    } else {
+      return theme.value
     }
-  }
+  })
+
+  const url = computed(() => {
+    const result = `https://motrix.app/lab?lite=true&theme=${currentTheme.value}&lang=${locale.value}`
+    return result
+  })
+
+  const title = computed(() => {
+    return t('preferences.lab')
+  })
+
+  const subnavs = computed(() => {
+    return [
+      {
+        key: 'basic',
+        title: t('preferences.basic'),
+        route: '/preference/basic'
+      },
+      {
+        key: 'advanced',
+        title: t('preferences.advanced'),
+        route: '/preference/advanced'
+      },
+      {
+        key: 'lab',
+        title: t('preferences.lab'),
+        route: '/preference/lab'
+      }
+    ]
+  })
 </script>
 
 <style lang="scss">
