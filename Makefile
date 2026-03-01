@@ -1,4 +1,4 @@
-.PHONY: install dev build build-dir build-github type-check lint lint-fix clean help
+.PHONY: install dev build build-dir build-github build-appimage type-check lint lint-fix clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -17,6 +17,9 @@ build-dir: ## Build without packaging (unpacked directory)
 
 build-github: ## Build bundles only (no electron-builder packaging)
 	pnpm build:github
+
+build-appimage: ## Build and package as AppImage (Linux)
+	pnpm exec electron-vite build && pnpm exec electron-builder --linux AppImage
 
 type-check: ## Run TypeScript type checking
 	pnpm type-check
