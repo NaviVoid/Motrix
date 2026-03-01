@@ -9,17 +9,7 @@ const { appId } = JSON.parse(readFileSync(resolve(__dirname, 'electron-builder.j
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({
-      include: [
-        'electron-is',
-        'electron-log',
-        'electron-store',
-        'electron-updater',
-        '@motrix/nat-api',
-        'i18next',
-        'lodash'
-      ]
-    })],
+    plugins: [externalizeDepsPlugin()],
     build: {
       outDir: 'dist/electron/main',
       rollupOptions: {
