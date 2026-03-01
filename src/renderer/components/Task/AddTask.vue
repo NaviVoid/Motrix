@@ -11,7 +11,7 @@
     @closed="handleClosed"
   >
     <el-form ref="taskForm" label-position="left" :model="form" :rules="rules">
-      <el-tabs :value="type" @tab-click="handleTabClick">
+      <el-tabs :model-value="type" @tab-click="handleTabClick">
         <el-tab-pane :label="$t('task.uri-task')" name="uri">
           <el-form-item>
             <el-input
