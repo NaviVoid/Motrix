@@ -66,7 +66,7 @@
     const { COMPLETE, WAITING, PAUSED } = TASK_STATUS
     if (status === COMPLETE) {
       openTask()
-    } else if ([WAITING, PAUSED].includes(status) !== -1) {
+    } else if ([WAITING, PAUSED].includes(status)) {
       toggleTask()
     }
   }

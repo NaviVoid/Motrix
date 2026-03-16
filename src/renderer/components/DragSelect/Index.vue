@@ -107,6 +107,11 @@
     }
 
     function startDrag (e: MouseEvent | Touch) {
+      const target = (e as any).target as HTMLElement
+      if (target && target.closest('.task-item-actions, button, a, input, select, textarea')) {
+        return
+      }
+
       containerRect = el.getBoundingClientRect()
       children.value = el.childNodes
       start = getCoords(e, containerRect)
